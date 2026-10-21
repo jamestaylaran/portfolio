@@ -4,10 +4,9 @@ import type { ReactNode } from "react";
 import { verifySession } from "@/lib/auth";
 import { logout } from "./actions";
 
-// Admin pages depend on the owner's session cookie, so they render per request
-// and can't be statically prerendered. This opts them out of static-shell
-// validation under Cache Components.
-export const instant = false;
+// Admin pages read the owner's session cookie, so they must render per request
+// and can't be statically prerendered.
+export const dynamic = "force-dynamic";
 
 const NAV = [
   { href: "/admin", label: "Dashboard" },

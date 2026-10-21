@@ -1,47 +1,35 @@
-import { cacheLife, cacheTag } from "next/cache";
-import { getDb } from "./db";
+import { sql } from "@vercel/postgres";
+import { ensureSchema } from "./db";
 import type { Achievement, Activity, Profile, Role } from "./types";
 
-// Every public read is cached under the "content" tag and refreshed with a long
-// lifetime. The owner dashboard calls updateTag("content") after each edit so
-// changes show up immediately without a redeploy.
+// All reads run at request time against Postgres. ensureSchema() creates the
+// tables and seeds placeholder content on first run.
 
 export async function getProfile(): Promise<Profile> {
-  "use cache";
-  cacheLife("max");
-  cacheTag("content");
-  const db = getDb();
-  return db.prepare("SELECT * FROM profile WHERE id = 1").get() as Profile;
+  await ensureSchema();
+  const { rows } = await sql`SELECT * FROM profile WHERE id = 1`;
+  return rows[0] as Profile;
 }
 
 export async function getAchievements(): Promise<Achievement[]> {
-  "use cache";
-  cacheLife("max");
-  cacheTag("content");
-  const db = getDb();
-  return db
-    .prepare("SELECT * FROM achievements ORDER BY sort_order ASC, date DESC")
-    .all() as Achievement[];
+  await ensureSchema();
+  const { rows } =
+    await sql`SELECT * FROM achievements ORDER BY sort_order ASC, date DESC`;
+  return rows as Achievement[];
 }
 
 export async function getRoles(): Promise<Role[]> {
-  "use cache";
-  cacheLife("max");
-  cacheTag("content");
-  const db = getDb();
-  return db
-    .prepare("SELECT * FROM roles ORDER BY sort_order ASC, start_date DESC")
-    .all() as Role[];
+  await ensureSchema();
+  const { rows } =
+    await sql`SELECT * FROM roles ORDER BY sort_order ASC, start_date DESC`;
+  return rows as Role[];
 }
 
 export async function getActivities(): Promise<Activity[]> {
-  "use cache";
-  cacheLife("max");
-  cacheTag("content");
-  const db = getDb();
-  return db
-    .prepare("SELECT * FROM activities ORDER BY sort_order ASC, date DESC")
-    .all() as Activity[];
+  await ensureSchema();
+  const { rows } =
+    await sql`SELECT * FROM activities ORDER BY sort_order ASC, date DESC`;
+  return rows as Activity[];
 }
 
 export async function getSkills(): Promise<string[]> {
@@ -50,12 +38,4 @@ export async function getSkills(): Promise<string[]> {
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
-}
-
-// The footer shows the current year. It's cached (rather than a bare
-// new Date()) so it's stable during prerender and refreshes daily.
-export async function getCopyrightYear(): Promise<number> {
-  "use cache";
-  cacheLife("days");
-  return new Date().getFullYear();
 }

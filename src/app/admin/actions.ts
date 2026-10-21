@@ -2,7 +2,8 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { getDb } from "@/lib/db";
+import { sql } from "@vercel/postgres";
+import { ensureSchema } from "@/lib/db";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import {
   SESSION_COOKIE,
@@ -14,12 +15,11 @@ import { verifySession } from "@/lib/auth";
 
 export type AuthState = { error?: string } | undefined;
 
-function getStoredPasswordHash(): string | null {
-  const db = getDb();
-  const row = db
-    .prepare("SELECT value FROM settings WHERE key = 'password_hash'")
-    .get() as { value: string } | undefined;
-  return row?.value ?? null;
+async function getStoredPasswordHash(): Promise<string | null> {
+  await ensureSchema();
+  const { rows } =
+    await sql`SELECT value FROM settings WHERE key = 'password_hash'`;
+  return rows[0]?.value ?? null;
 }
 
 export async function login(
@@ -27,7 +27,7 @@ export async function login(
   formData: FormData
 ): Promise<AuthState> {
   const password = String(formData.get("password") ?? "");
-  const stored = getStoredPasswordHash();
+  const stored = await getStoredPasswordHash();
 
   if (!stored || !verifyPassword(password, stored)) {
     return { error: "Incorrect password. Please try again." };
@@ -68,15 +68,12 @@ export async function changePassword(
     return { error: "New passwords do not match." };
   }
 
-  const stored = getStoredPasswordHash();
+  const stored = await getStoredPasswordHash();
   if (!stored || !verifyPassword(current, stored)) {
     return { error: "Current password is incorrect." };
   }
 
-  const db = getDb();
-  db.prepare(
-    "UPDATE settings SET value = ? WHERE key = 'password_hash'"
-  ).run(hashPassword(next));
+  await sql`UPDATE settings SET value = ${hashPassword(next)} WHERE key = 'password_hash'`;
 
   return {};
 }

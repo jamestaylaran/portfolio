@@ -1,6 +1,10 @@
 import Link from "next/link";
-import { getCopyrightYear, getProfile } from "@/lib/data";
+import { getProfile } from "@/lib/data";
 import type { ReactNode } from "react";
+
+// Render at request time so edits from the dashboard appear immediately and the
+// build never needs database access.
+export const dynamic = "force-dynamic";
 
 const NAV = [
   { href: "/", label: "Home" },
@@ -16,7 +20,7 @@ export default async function SiteLayout({
   children: ReactNode;
 }) {
   const profile = await getProfile();
-  const year = await getCopyrightYear();
+  const year = new Date().getFullYear();
 
   return (
     <div className="flex flex-col min-h-screen">
