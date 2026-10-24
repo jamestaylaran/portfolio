@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { getProfile } from "@/lib/data";
+import { isDatabaseConfigured } from "@/lib/db";
+import DatabaseNotice from "@/components/DatabaseNotice";
 import type { ReactNode } from "react";
 
 // Render at request time so edits from the dashboard appear immediately and the
@@ -19,6 +21,11 @@ export default async function SiteLayout({
 }: {
   children: ReactNode;
 }) {
+  // No database connected yet: show setup instructions instead of a 500.
+  if (!isDatabaseConfigured()) {
+    return <DatabaseNotice />;
+  }
+
   const profile = await getProfile();
   const year = new Date().getFullYear();
 

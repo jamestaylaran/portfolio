@@ -2,6 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { verifySession } from "@/lib/auth";
+import { isDatabaseConfigured } from "@/lib/db";
+import DatabaseNotice from "@/components/DatabaseNotice";
 import { logout } from "./actions";
 
 // Admin pages read the owner's session cookie, so they must render per request
@@ -21,6 +23,11 @@ export default async function AdminLayout({
 }: {
   children: ReactNode;
 }) {
+  // No database connected yet: show setup instructions instead of a 500.
+  if (!isDatabaseConfigured()) {
+    return <DatabaseNotice />;
+  }
+
   // Real authorization check (in addition to the optimistic proxy check).
   const isOwner = await verifySession();
   if (!isOwner) {

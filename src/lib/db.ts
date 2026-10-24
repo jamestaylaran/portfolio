@@ -1,6 +1,15 @@
 import { sql } from "@vercel/postgres";
 import { hashPassword } from "./password";
 
+/**
+ * True once a Postgres database is connected to the project. Vercel sets
+ * POSTGRES_URL automatically when a database is created and linked. Used to
+ * render setup instructions instead of crashing with a 500.
+ */
+export function isDatabaseConfigured(): boolean {
+  return Boolean(process.env.POSTGRES_URL);
+}
+
 // Schema is created and seeded lazily, once per server instance. A guard row in
 // `settings` (inserted with ON CONFLICT DO NOTHING) ensures only one instance
 // seeds, even if several cold-start at the same time.
