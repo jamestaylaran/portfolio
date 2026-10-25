@@ -2,8 +2,8 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { sql } from "@vercel/postgres";
-import { ensureSchema, isDatabaseConfigured } from "@/lib/db";
+import { ensureSchema } from "@/lib/db";
+import { isDatabaseConfigured, sql } from "@/lib/sql";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import {
   SESSION_COOKIE,
@@ -18,9 +18,8 @@ export type AuthState = { error?: string } | undefined;
 async function getStoredPasswordHash(): Promise<string | null> {
   if (!isDatabaseConfigured()) return null;
   await ensureSchema();
-  const { rows } =
-    await sql`SELECT value FROM settings WHERE key = 'password_hash'`;
-  return rows[0]?.value ?? null;
+  const rows = await sql`SELECT value FROM settings WHERE key = 'password_hash'`;
+  return (rows[0] as unknown as { value: string } | undefined)?.value ?? null;
 }
 
 export async function login(

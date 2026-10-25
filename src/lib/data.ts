@@ -1,5 +1,5 @@
-import { sql } from "@vercel/postgres";
-import { ensureSchema, isDatabaseConfigured } from "./db";
+import { ensureSchema } from "./db";
+import { isDatabaseConfigured, sql } from "./sql";
 import type { Achievement, Activity, Profile, Role } from "./types";
 
 // All reads run at request time against Postgres. ensureSchema() creates the
@@ -32,32 +32,32 @@ const PLACEHOLDER_PROFILE: Profile = {
 export async function getProfile(): Promise<Profile> {
   if (!isDatabaseConfigured()) return PLACEHOLDER_PROFILE;
   await ensureSchema();
-  const { rows } = await sql`SELECT * FROM profile WHERE id = 1`;
-  return (rows[0] as Profile) ?? PLACEHOLDER_PROFILE;
+  const rows = await sql`SELECT * FROM profile WHERE id = 1`;
+  return (rows[0] as unknown as Profile) ?? PLACEHOLDER_PROFILE;
 }
 
 export async function getAchievements(): Promise<Achievement[]> {
   if (!isDatabaseConfigured()) return [];
   await ensureSchema();
-  const { rows } =
+  const rows =
     await sql`SELECT * FROM achievements ORDER BY sort_order ASC, date DESC`;
-  return rows as Achievement[];
+  return rows as unknown as Achievement[];
 }
 
 export async function getRoles(): Promise<Role[]> {
   if (!isDatabaseConfigured()) return [];
   await ensureSchema();
-  const { rows } =
+  const rows =
     await sql`SELECT * FROM roles ORDER BY sort_order ASC, start_date DESC`;
-  return rows as Role[];
+  return rows as unknown as Role[];
 }
 
 export async function getActivities(): Promise<Activity[]> {
   if (!isDatabaseConfigured()) return [];
   await ensureSchema();
-  const { rows } =
+  const rows =
     await sql`SELECT * FROM activities ORDER BY sort_order ASC, date DESC`;
-  return rows as Activity[];
+  return rows as unknown as Activity[];
 }
 
 export async function getSkills(): Promise<string[]> {

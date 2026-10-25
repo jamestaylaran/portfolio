@@ -1,8 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { sql } from "@vercel/postgres";
 import { ensureSchema } from "@/lib/db";
+import { sql } from "@/lib/sql";
 import { verifySession } from "@/lib/auth";
 
 export type ContentState = { error?: string; ok?: boolean } | undefined;
