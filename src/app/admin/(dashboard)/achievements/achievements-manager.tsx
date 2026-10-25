@@ -5,7 +5,7 @@ import {
   deleteAchievement,
   saveAchievement,
   type ContentState,
-} from "../content-actions";
+} from "../../content-actions";
 import type { Achievement } from "@/lib/types";
 
 const CATEGORIES = [

@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { verifySession } from "@/lib/auth";
 import { isDatabaseConfigured } from "@/lib/db";
 import DatabaseNotice from "@/components/DatabaseNotice";
-import { logout } from "./actions";
+import { logout } from "../actions";
 
 // Admin pages read the owner's session cookie, so they must render per request
 // and can't be statically prerendered.

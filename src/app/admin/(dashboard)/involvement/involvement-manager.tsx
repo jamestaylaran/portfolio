@@ -7,7 +7,7 @@ import {
   saveActivity,
   saveRole,
   type ContentState,
-} from "../content-actions";
+} from "../../content-actions";
 import type { Activity, Role } from "@/lib/types";
 
 const ROLE_TYPES = ["Officer", "Member", "Volunteer", "Committee"];
