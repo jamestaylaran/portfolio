@@ -1,18 +1,26 @@
 "use client";
 
+import { useEffect } from "react";
+
 /**
  * Full-screen intro matching your spec:
- * - 3 icons slide UP chronologically, 1s interval
+ * - 3 icons slide UP chronologically, 0.5s interval
  * - "Welcome" slides LEFT, 2s
  * - "to My" slides RIGHT, 2s
  * - "Portfolio Website" slides UP, 2s
  * - After the animations + 2s interval, fades into the home page.
  * All animations use transform/opacity only (GPU-accelerated, lag-free).
+ * Header is hidden while intro plays.
  */
 export default function Intro() {
+  useEffect(() => {
+    document.body.classList.add("intro-active");
+    return () => document.body.classList.remove("intro-active");
+  }, []);
+
   return (
     <div
-      className="fixed inset-0 z-50 bg-background flex flex-col items-center justify-center relative"
+      className="fixed inset-0 z-[9999] bg-background flex flex-col items-center justify-center relative"
       aria-hidden="true"
     >
       <div className="intro-glow" />

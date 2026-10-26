@@ -31,7 +31,7 @@ export default async function SiteLayout({
 
   return (
     <div className="flex flex-col min-h-screen">
-      <header className="sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur">
+      <header className="site-header sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur">
         <nav className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
           <Link href="/" className="font-semibold tracking-tight">
             {profile.avatar_text ? (
