@@ -20,10 +20,9 @@ export default function Intro() {
 
   return (
     <div
-      className="fixed inset-0 z-[9999] bg-background flex flex-col items-center justify-center relative"
+      className="fixed inset-0 z-50 bg-background flex flex-col items-center justify-center relative"
       aria-hidden="true"
     >
-      <div className="intro-glow" />
       {/* Three circular icons, slide up one by one with 1s interval */}
       <div className="flex gap-6 mb-12">
         <div
@@ -44,18 +43,18 @@ export default function Intro() {
       </div>
 
       {/* Text: two lines */}
-      <h1 className="text-5xl font-bold tracking-tight text-foreground leading-[1.1] text-center">
+      <h1 className="text-5xl font-bold tracking-tight text-white leading-[1.1] text-center">
         <span className="intro-word-welcome intro-word-delay-0">Welcome</span>{" "}
         <span className="intro-word-to-my intro-word-delay-400">to My</span>
         <br />
-        <span className="intro-word-portfolio-website intro-word-delay-800 gradient-text">
+        <span className="intro-word-portfolio-website intro-word-delay-800">
           Portfolio Website
         </span>
       </h1>
 
       {/* URL fades in after the words */}
       <div
-        className="mt-16 rounded-full border border-border bg-surface px-6 py-2.5 text-xs text-accent intro-url"
+        className="mt-16 rounded-full border border-border bg-surface px-6 py-2.5 text-xs text-muted intro-url"
       >
         www.rifiq.vercel.app
       </div>

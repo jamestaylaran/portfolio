@@ -313,26 +313,6 @@ body.intro-active .site-header {
 .intro-icon-delay-500   { animation-delay: 0.5s;   }
 .intro-icon-delay-1000  { animation-delay: 1s;     }
 
-/* Subtle accent glow behind intro text */
-.intro-glow {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 420px;
-  height: 420px;
-  background: radial-gradient(
-    600px 240px at 50% 0,
-    var(--accent-soft),
-    transparent 70%
-  );
-  opacity: 0;
-  animation: fadeIn 1.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-  animation-delay: 0.4s;
-  pointer-events: none;
-  z-index: 0;
-}
-
 /* Intro word animations - 2s duration each */
 .intro-word-welcome {
   animation: slideInFromLeft 2s cubic-bezier(0.22, 1, 0.36, 1) forwards;

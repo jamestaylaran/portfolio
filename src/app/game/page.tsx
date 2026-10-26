@@ -70,7 +70,7 @@ export default function GamePage() {
           >
             <defs>
               <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
-                <path d="M 20 0 L 0 0 0 20" fill="none" stroke="currentColor" stroke-width="1" />
+                <path d="M 20 0 L 0 0 0 20" fill="none" stroke="currentColor" strokeWidth={1} />
               </pattern>
             </defs>
             <rect width="100" height="100" fill="url(#grid)" />
