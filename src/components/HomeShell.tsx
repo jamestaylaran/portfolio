@@ -41,16 +41,13 @@ function createLanyardSystem() {
   let rafId = 0;
   let grabbed: Body | null = null;
   let anchorX = 0;
-  let anchorEl: HTMLElement | null = null;
 
-  // The lace hangs from directly below the Contact nav link — re-measured
-  // whenever the layout shifts (window resize).
-  const updateAnchorFromNav = () => {
-    if (!anchorEl) return;
-    const r = anchorEl.getBoundingClientRect();
-    anchorX = r.left + r.width / 2;
+  // The lace hangs from the top center of the viewport; re-measured on
+  // resize so the badge stays centered.
+  const updateAnchor = () => {
+    anchorX = window.innerWidth / 2;
   };
-  window.addEventListener("resize", updateAnchorFromNav);
+  window.addEventListener("resize", updateAnchor);
 
   function render(b: Body, ax: number) {
     // Rope angle: direction from the anchor down to the badge center.
@@ -78,8 +75,9 @@ function createLanyardSystem() {
     const H = window.innerHeight;
 
     for (const b of bodies) {
-      // Recomputed every frame so window resizes stay correct.
-      const maxD = Math.max(160, H - GROUND_GAP - b.h / 2);
+      // Lace length: exactly long enough for the badge to hang at the
+      // vertical center of the screen. Recomputed on resize.
+      const maxD = Math.max(160, H / 2);
       const ax = Math.min(anchorX, W - b.w / 2 - 8);
 
       // --- forces (computed from the current position) --------------------
@@ -227,15 +225,14 @@ function createLanyardSystem() {
   rafId = requestAnimationFrame(step);
 
   return {
-    add(el: HTMLElement, rope: HTMLElement, x: number, aEl?: HTMLElement | null) {
+    add(el: HTMLElement, rope: HTMLElement, x: number) {
       anchorX = x;
-      anchorEl = aEl ?? null;
-      if (anchorEl) updateAnchorFromNav();
       const w = el.offsetWidth;
       const h = el.offsetHeight;
       const H = window.innerHeight;
       const W = window.innerWidth;
-      const maxD = Math.max(160, H - GROUND_GAP - h / 2);
+      // Long enough that the badge hangs at the vertical center of the screen.
+      const maxD = Math.max(160, H / 2);
       const ax = Math.min(anchorX, W - w / 2 - 8);
       // Entry: the badge starts up near the top edge (just below the navbar)
       // and falls in — the lace feeds out as it drops, then catches it with
@@ -278,7 +275,7 @@ function createLanyardSystem() {
     },
     destroy() {
       cancelAnimationFrame(rafId);
-      window.removeEventListener("resize", updateAnchorFromNav);
+      window.removeEventListener("resize", updateAnchor);
       window.removeEventListener("pointerdown", onPointerDown);
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
@@ -319,18 +316,10 @@ export default function HomeShell({
     const el = badgeRef.current;
     const rope = ropeRef.current;
     if (!el || !rope) return;
-    // Anchor the lace directly below the "Contact" nav link.
-    const contact = document.querySelector<HTMLElement>(
-      'header a[href="/contact"]'
-    );
-    const r = el.getBoundingClientRect();
-    const fallbackX = r.left + r.width / 2;
-    const cx = contact
-      ? contact.getBoundingClientRect().left +
-        contact.getBoundingClientRect().width / 2
-      : fallbackX;
+    // The lace hangs from the top center of the viewport; the badge is
+    // suspended at the exact center of the screen.
     const sys = createLanyardSystem();
-    sys.add(el, rope, cx, contact);
+    sys.add(el, rope, window.innerWidth / 2);
     return () => sys.destroy();
   }, [introDone]);
 
