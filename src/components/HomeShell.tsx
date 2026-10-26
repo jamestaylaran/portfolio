@@ -7,9 +7,9 @@ import ScrollReveal from "@/components/ScrollReveal";
 import type { Profile, Achievement, Role, Activity } from "@/lib/types";
 
 // --- Lanyard physics -------------------------------------------------------
-// The ID badge hangs from a lace anchored at the top of the viewport. It
-// swings like a pendulum, can be grabbed and thrown, and is rope-constrained
-// so it can NEVER reach the ground.
+// The ID badge hangs from a lace anchored at the top of the viewport, like a
+// real lanyard: it swings inside a sane cone, can be grabbed and thrown, and
+// is rope-constrained so it can NEVER reach the ground or flip sideways.
 type Body = {
   el: HTMLElement;
   rope: HTMLElement;
@@ -24,16 +24,39 @@ type Body = {
   targetY: number;
 };
 
-const GROUND_GAP = 120; // minimum clearance between badge bottom and floor
+const GROUND_GAP = 120; // minimum clearance between badge and the floor
 const ANCHOR_Y = 0; // lace is anchored at the very top edge of the viewport
+const MAX_ANGLE = 0.62; // ~35° max swing from vertical — stays upright
+const MAX_SPEED = 14; // px/frame cap so throws stay graceful, never violent
 
 function createLanyardSystem() {
   const bodies: Body[] = [];
   const GRAVITY = 0.5;
-  const AIR_DRAG = 0.994;
+  const AIR_DRAG = 0.99;
   let rafId = 0;
   let grabbed: Body | null = null;
   let anchorX = 0;
+
+  function render(b: Body, ax: number) {
+    // Rope angle: direction from the anchor down to the badge center.
+    const dx = b.x - ax;
+    const dy = b.y - ANCHOR_Y;
+    const th = Math.atan2(-dx, dy); // 0 = hanging straight down
+    const thDeg = (th * 180) / Math.PI;
+
+    // The card rotates about its TOP center (transform-origin 50% 0), so the
+    // slot stays glued to the end of the lace even while tilted.
+    const slotX = b.x + (b.h / 2) * Math.sin(th);
+    const slotY = b.y - (b.h / 2) * Math.cos(th);
+    b.el.style.transform = `translate3d(${slotX - b.w / 2}px, ${slotY}px, 0) rotate(${thDeg}deg)`;
+
+    const rdx = slotX - ax;
+    const rdy = slotY - ANCHOR_Y;
+    const rd = Math.hypot(rdx, rdy) || 1;
+    const rdeg = (Math.atan2(-rdx, rdy) * 180) / Math.PI;
+    b.rope.style.height = `${rd}px`;
+    b.rope.style.transform = `translate3d(${ax}px, 0px, 0) rotate(${rdeg}deg)`;
+  }
 
   function step() {
     const W = window.innerWidth;
@@ -65,25 +88,41 @@ function createLanyardSystem() {
         b.vy *= AIR_DRAG;
         b.x += b.vx;
         b.y += b.vy;
+      }
 
-        // Rope constraint: project back onto the lace sphere and cancel the
-        // outward velocity so it swings instead of snapping.
-        const dx = b.x - ax;
-        const dy = b.y - ANCHOR_Y;
-        const d = Math.hypot(dx, dy) || 1;
-        if (d > maxD) {
-          const nx = dx / d;
-          const ny = dy / d;
-          b.x = ax + nx * maxD;
-          b.y = ANCHOR_Y + ny * maxD;
+      // Rope sphere + swing cone clamp. The cone is what keeps the card
+      // upright: it can lean at most 35° either way, never past horizontal,
+      // never up near the anchor.
+      const dx = b.x - ax;
+      const dy = b.y - ANCHOR_Y;
+      const d = Math.hypot(dx, dy) || 1;
+      const ang = Math.atan2(dx, dy); // 0 = straight down
+      const cAng = Math.max(-MAX_ANGLE, Math.min(MAX_ANGLE, ang));
+      const cD = Math.min(d, maxD);
+      if (cAng !== ang || cD !== d) {
+        b.x = ax + Math.sin(cAng) * cD;
+        b.y = ANCHOR_Y + Math.cos(cAng) * cD;
+        if (!b.dragging) {
+          // Project velocity onto what's still allowed: inward radial motion
+          // (rope limit) and tangential motion (cone limit).
+          const nx = Math.sin(cAng);
+          const ny = Math.cos(cAng); // radial, outward
+          const tnx = Math.cos(cAng);
+          const tny = -Math.sin(cAng); // tangent
           const vn = b.vx * nx + b.vy * ny;
-          if (vn > 0) {
-            b.vx -= vn * nx;
-            b.vy -= vn * ny;
-          }
-          b.vx *= 0.97;
-          b.vy *= 0.97;
+          const vt = b.vx * tnx + b.vy * tny;
+          const vr = vn > 0 ? 0 : vn;
+          const keepTan = cAng === ang;
+          b.vx = nx * vr + tnx * (keepTan ? vt : 0);
+          b.vy = ny * vr + tny * (keepTan ? vt : 0);
         }
+      }
+
+      // Speed cap — no violent slingshots.
+      const sp = Math.hypot(b.vx, b.vy);
+      if (sp > MAX_SPEED) {
+        b.vx = (b.vx / sp) * MAX_SPEED;
+        b.vy = (b.vy / sp) * MAX_SPEED;
       }
 
       // Walls
@@ -103,19 +142,7 @@ function createLanyardSystem() {
         if (b.vy > 0) b.vy = 0;
       }
 
-      // Lace tilt: drawn from the anchor down to the badge's top center.
-      const hookX = b.x;
-      const hookY = b.y - b.h / 2;
-      const rdx = hookX - ax;
-      const rdy = hookY - ANCHOR_Y;
-      const rd = Math.hypot(rdx, rdy) || 1;
-      const rdeg = (Math.atan2(-rdx, rdy) * 180) / Math.PI;
-
-      b.el.style.transform = `translate3d(${b.x - b.w / 2}px, ${
-        b.y - b.h / 2
-      }px, 0) rotate(${rdeg}deg)`;
-      b.rope.style.height = `${rd}px`;
-      b.rope.style.transform = `translate3d(${ax}px, 0px, 0) rotate(${rdeg}deg)`;
+      render(b, ax);
     }
 
     rafId = requestAnimationFrame(step);
@@ -174,8 +201,8 @@ function createLanyardSystem() {
       const W = window.innerWidth;
       const maxD = Math.max(160, H - GROUND_GAP - h / 2);
       const ax = Math.min(anchorX, W - w / 2 - 8);
-      // Start swung slightly aside so the badge sways in like a pendulum.
-      const phi = -0.2;
+      // Start gently swung aside so the badge sways in like a pendulum.
+      const phi = -0.18;
       const startX = ax + Math.sin(phi) * maxD;
       const startY = ANCHOR_Y + Math.cos(phi) * maxD;
 
@@ -201,22 +228,14 @@ function createLanyardSystem() {
       el.style.cursor = "grab";
       el.style.touchAction = "none";
       el.style.userSelect = "none";
+      // Rotate around the slot at the top of the card, where the clip is.
+      el.style.transformOrigin = "50% 0";
       rope.style.position = "fixed";
 
       bodies.push(body);
 
       // Paint the first frame immediately (no flash at the DOM position).
-      const hookX = startX;
-      const hookY = startY - h / 2;
-      const rdx = hookX - ax;
-      const rdy = hookY - ANCHOR_Y;
-      const rd = Math.hypot(rdx, rdy) || 1;
-      const rdeg = (Math.atan2(-rdx, rdy) * 180) / Math.PI;
-      el.style.transform = `translate3d(${startX - w / 2}px, ${
-        startY - h / 2
-      }px, 0) rotate(${rdeg}deg)`;
-      rope.style.height = `${rd}px`;
-      rope.style.transform = `translate3d(${ax}px, 0px, 0) rotate(${rdeg}deg)`;
+      render(body, ax);
     },
     destroy() {
       cancelAnimationFrame(rafId);
@@ -332,12 +351,27 @@ export default function HomeShell({
               running down to the badge (length/tilt updated every frame) */}
           <div
             ref={ropeRef}
-            className="hero-anim hero-fade hero-d4 pointer-events-none fixed left-0 top-0 z-[15] w-[3px] origin-top-left rounded-full bg-gradient-to-b from-white/10 via-white/30 to-white/50"
+            className="hero-anim hero-fade hero-d4 pointer-events-none fixed left-0 top-0 z-[15] w-9 origin-top bg-[linear-gradient(90deg,#0d0d12_0%,#23232f_45%,#17171f_68%,#0a0a0f_100%)] shadow-[0_0_0_1px_rgba(255,255,255,0.08)] sm:w-10"
             style={{ height: "320px", willChange: "transform" }}
           >
-            {/* Metal clip at the bottom end of the lace */}
-            <span className="absolute -bottom-2 left-1/2 h-5 w-4 -translate-x-1/2 rounded-[3px] border border-white/40 bg-white/15">
-              <span className="absolute left-1/2 top-1.5 h-3 w-px -translate-x-1/2 bg-white/40" />
+            {/* "ID CARD" printed repeatedly down the woven strap */}
+            <div className="flex h-full flex-col items-center justify-around py-3">
+              {[0, 1, 2, 3, 4].map((i) => (
+                <span
+                  key={i}
+                  className="shrink-0 select-none whitespace-nowrap font-mono text-[7px] font-bold tracking-[0.08em] text-white/55"
+                >
+                  ID CARD
+                </span>
+              ))}
+            </div>
+
+            {/* Snap-hook clasp at the bottom end, clipping into the slot */}
+            <span className="absolute -bottom-3 left-1/2 flex -translate-x-1/2 flex-col items-center">
+              <span className="h-2.5 w-2.5 rounded-full border-2 border-white/35 bg-black/70" />
+              <span className="-mt-1 h-7 w-4 rounded-[4px] border border-white/25 bg-[#0e0e13]">
+                <span className="mx-auto mt-2 h-4 w-px bg-white/30" />
+              </span>
             </span>
           </div>
 
