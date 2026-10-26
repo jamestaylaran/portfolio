@@ -36,6 +36,16 @@ function createLanyardSystem() {
   let rafId = 0;
   let grabbed: Body | null = null;
   let anchorX = 0;
+  let anchorEl: HTMLElement | null = null;
+
+  // The lace hangs from directly below the Contact nav link — re-measured
+  // whenever the layout shifts (window resize).
+  const updateAnchorFromNav = () => {
+    if (!anchorEl) return;
+    const r = anchorEl.getBoundingClientRect();
+    anchorX = r.left + r.width / 2;
+  };
+  window.addEventListener("resize", updateAnchorFromNav);
 
   function render(b: Body, ax: number) {
     // Rope angle: direction from the anchor down to the badge center.
@@ -193,8 +203,10 @@ function createLanyardSystem() {
   rafId = requestAnimationFrame(step);
 
   return {
-    add(el: HTMLElement, rope: HTMLElement, x: number) {
+    add(el: HTMLElement, rope: HTMLElement, x: number, aEl?: HTMLElement | null) {
       anchorX = x;
+      anchorEl = aEl ?? null;
+      if (anchorEl) updateAnchorFromNav();
       const w = el.offsetWidth;
       const h = el.offsetHeight;
       const H = window.innerHeight;
@@ -239,6 +251,7 @@ function createLanyardSystem() {
     },
     destroy() {
       cancelAnimationFrame(rafId);
+      window.removeEventListener("resize", updateAnchorFromNav);
       window.removeEventListener("pointerdown", onPointerDown);
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
@@ -279,9 +292,18 @@ export default function HomeShell({
     const el = badgeRef.current;
     const rope = ropeRef.current;
     if (!el || !rope) return;
-    const sys = createLanyardSystem();
+    // Anchor the lace directly below the "Contact" nav link.
+    const contact = document.querySelector<HTMLElement>(
+      'header a[href="/contact"]'
+    );
     const r = el.getBoundingClientRect();
-    sys.add(el, rope, r.left + r.width / 2);
+    const fallbackX = r.left + r.width / 2;
+    const cx = contact
+      ? contact.getBoundingClientRect().left +
+        contact.getBoundingClientRect().width / 2
+      : fallbackX;
+    const sys = createLanyardSystem();
+    sys.add(el, rope, cx, contact);
     return () => sys.destroy();
   }, [introDone]);
 
@@ -379,7 +401,7 @@ export default function HomeShell({
               and is rope-constrained so it never touches the ground */}
           <div
             ref={badgeRef}
-            className="hero-anim hero-fade hero-d4 absolute right-6 top-[16%] w-48 rounded-xl border border-white/10 bg-black/50 p-3 shadow-2xl backdrop-blur-sm sm:right-12 sm:w-56 lg:right-16 lg:w-60"
+            className="hero-anim hero-fade hero-d4 absolute right-6 top-[16%] w-52 rounded-xl border border-white/10 bg-black/50 p-3 shadow-2xl backdrop-blur-sm sm:right-12 sm:w-60 lg:right-16 lg:w-64"
           >
             {/* Slot hole where the clip meets the card */}
             <div className="mx-auto mb-2 h-2 w-10 rounded-full bg-white/15 ring-1 ring-white/10" />
@@ -388,7 +410,7 @@ export default function HomeShell({
               <img
                 src="/id-photo.jpg"
                 alt="Profile ID"
-                className="h-44 w-full object-cover object-top sm:h-52 lg:h-56"
+                className="h-48 w-full object-cover object-top sm:h-56 lg:h-64"
                 draggable={false}
               />
             </div>
