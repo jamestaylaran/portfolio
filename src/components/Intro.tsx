@@ -23,12 +23,12 @@ export default function Intro() {
           &lt;/&gt;
         </div>
         <div
-          className="w-12 h-12 rounded-full border border-border flex items-center justify-center text-[11px] font-mono text-muted intro-icon intro-icon-delay-1000"
+          className="w-12 h-12 rounded-full border border-border flex items-center justify-center text-[11px] font-mono text-muted intro-icon intro-icon-delay-500"
         >
           me
         </div>
         <div
-          className="w-12 h-12 rounded-full border border-border flex items-center justify-center text-[11px] font-mono text-muted intro-icon intro-icon-delay-2000"
+          className="w-12 h-12 rounded-full border border-border flex items-center justify-center text-[11px] font-mono text-muted intro-icon intro-icon-delay-1000"
         >
           web
         </div>

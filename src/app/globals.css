@@ -307,8 +307,8 @@ body {
   justify-content: center;
 }
 .intro-icon-delay-0     { animation-delay: 0s;     }
+.intro-icon-delay-500   { animation-delay: 0.5s;   }
 .intro-icon-delay-1000  { animation-delay: 1s;     }
-.intro-icon-delay-2000  { animation-delay: 2s;     }
 
 /* Intro word animations - 2s duration each */
 .intro-word-welcome {
