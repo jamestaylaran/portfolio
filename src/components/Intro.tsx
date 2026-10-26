@@ -20,7 +20,7 @@ export default function Intro() {
 
   return (
     <div
-      className="fixed inset-0 z-[9999] bg-background min-h-screen flex flex-col items-center justify-center relative"
+      className="intro-overlay fixed inset-0 z-[9999] bg-background min-h-screen flex flex-col items-center justify-center relative"
       aria-hidden="true"
     >
       {/* Three circular icons, slide up one by one with 0.5s interval */}
