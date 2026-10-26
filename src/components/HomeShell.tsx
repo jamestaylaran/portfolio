@@ -6,10 +6,13 @@ import Intro from "@/components/Intro";
 import ScrollReveal from "@/components/ScrollReveal";
 import type { Profile, Achievement, Role, Activity } from "@/lib/types";
 
-// --- Gravity physics -------------------------------------------------------
-// Viewport-space rigid "cards": fall, bounce off floor/walls, grab & throw.
+// --- Lanyard physics -------------------------------------------------------
+// The ID badge hangs from a lace anchored at the top of the viewport. It
+// swings like a pendulum, can be grabbed and thrown, and is rope-constrained
+// so it can NEVER reach the ground.
 type Body = {
   el: HTMLElement;
+  rope: HTMLElement;
   x: number; // center X (viewport px)
   y: number; // center Y (viewport px)
   vx: number;
@@ -21,32 +24,39 @@ type Body = {
   targetY: number;
 };
 
-function createGravitySystem() {
+const GROUND_GAP = 120; // minimum clearance between badge bottom and floor
+const ANCHOR_Y = 0; // lace is anchored at the very top edge of the viewport
+
+function createLanyardSystem() {
   const bodies: Body[] = [];
-  const GRAVITY = 0.55;
-  const FLOOR_FRICTION = 0.985;
-  const AIR_DRAG = 0.996;
-  const BOUNCE = 0.45;
+  const GRAVITY = 0.5;
+  const AIR_DRAG = 0.994;
   let rafId = 0;
   let grabbed: Body | null = null;
-
-  function render(b: Body) {
-    // Center-based: translate3d positions the element's center at (x, y).
-    const rot = Math.max(-9, Math.min(9, b.vx * 2.2));
-    b.el.style.transform = `translate3d(${b.x - b.w / 2}px, ${
-      b.y - b.h / 2
-    }px, 0) rotate(${rot}deg)`;
-  }
+  let anchorX = 0;
 
   function step() {
     const W = window.innerWidth;
     const H = window.innerHeight;
 
     for (const b of bodies) {
+      // Recomputed every frame so window resizes stay correct.
+      const maxD = Math.max(160, H - GROUND_GAP - b.h / 2);
+      const ax = Math.min(anchorX, W - b.w / 2 - 8);
+
       if (b.dragging) {
-        // Spring toward the pointer — feels weighty but responsive.
-        b.vx = (b.targetX - b.x) * 0.3;
-        b.vy = (b.targetY - b.y) * 0.3;
+        // Spring toward the pointer, clamped inside the lace length.
+        let tx = b.targetX;
+        let ty = b.targetY;
+        const ddx = tx - ax;
+        const ddy = ty - ANCHOR_Y;
+        const dd = Math.hypot(ddx, ddy) || 1;
+        if (dd > maxD) {
+          tx = ax + (ddx / dd) * maxD;
+          ty = ANCHOR_Y + (ddy / dd) * maxD;
+        }
+        b.vx = (tx - b.x) * 0.3;
+        b.vy = (ty - b.y) * 0.3;
         b.x += b.vx;
         b.y += b.vy;
       } else {
@@ -56,30 +66,56 @@ function createGravitySystem() {
         b.x += b.vx;
         b.y += b.vy;
 
-        // Floor
-        const floorY = H - b.h / 2;
-        if (b.y > floorY) {
-          b.y = floorY;
-          b.vy *= -BOUNCE;
-          b.vx *= FLOOR_FRICTION;
-          if (Math.abs(b.vy) < 0.7) b.vy = 0;
-        }
-        // Ceiling
-        if (b.y - b.h / 2 < 0) {
-          b.y = b.h / 2;
-          b.vy *= -BOUNCE;
-        }
-        // Walls
-        if (b.x + b.w / 2 > W) {
-          b.x = W - b.w / 2;
-          b.vx *= -BOUNCE;
-        }
-        if (b.x - b.w / 2 < 0) {
-          b.x = b.w / 2;
-          b.vx *= -BOUNCE;
+        // Rope constraint: project back onto the lace sphere and cancel the
+        // outward velocity so it swings instead of snapping.
+        const dx = b.x - ax;
+        const dy = b.y - ANCHOR_Y;
+        const d = Math.hypot(dx, dy) || 1;
+        if (d > maxD) {
+          const nx = dx / d;
+          const ny = dy / d;
+          b.x = ax + nx * maxD;
+          b.y = ANCHOR_Y + ny * maxD;
+          const vn = b.vx * nx + b.vy * ny;
+          if (vn > 0) {
+            b.vx -= vn * nx;
+            b.vy -= vn * ny;
+          }
+          b.vx *= 0.97;
+          b.vy *= 0.97;
         }
       }
-      render(b);
+
+      // Walls
+      if (b.x + b.w / 2 > W) {
+        b.x = W - b.w / 2;
+        b.vx *= -0.4;
+      }
+      if (b.x - b.w / 2 < 0) {
+        b.x = b.w / 2;
+        b.vx *= -0.4;
+      }
+
+      // Absolute ground guard (belt & suspenders).
+      const maxCy = H - GROUND_GAP - b.h / 2;
+      if (b.y > maxCy) {
+        b.y = maxCy;
+        if (b.vy > 0) b.vy = 0;
+      }
+
+      // Lace tilt: drawn from the anchor down to the badge's top center.
+      const hookX = b.x;
+      const hookY = b.y - b.h / 2;
+      const rdx = hookX - ax;
+      const rdy = hookY - ANCHOR_Y;
+      const rd = Math.hypot(rdx, rdy) || 1;
+      const rdeg = (Math.atan2(-rdx, rdy) * 180) / Math.PI;
+
+      b.el.style.transform = `translate3d(${b.x - b.w / 2}px, ${
+        b.y - b.h / 2
+      }px, 0) rotate(${rdeg}deg)`;
+      b.rope.style.height = `${rd}px`;
+      b.rope.style.transform = `translate3d(${ax}px, 0px, 0) rotate(${rdeg}deg)`;
     }
 
     rafId = requestAnimationFrame(step);
@@ -116,7 +152,7 @@ function createGravitySystem() {
     if (!grabbed) return;
     grabbed.dragging = false;
     grabbed.el.style.cursor = "grab";
-    grabbed.vx *= 0.5; // keeps some momentum for a satisfying throw
+    grabbed.vx *= 0.5;
     grabbed.vy *= 0.5;
     grabbed = null;
   };
@@ -130,22 +166,33 @@ function createGravitySystem() {
   rafId = requestAnimationFrame(step);
 
   return {
-    add(el: HTMLElement, x: number, y: number) {
+    add(el: HTMLElement, rope: HTMLElement, x: number) {
+      anchorX = x;
       const w = el.offsetWidth;
       const h = el.offsetHeight;
+      const H = window.innerHeight;
+      const W = window.innerWidth;
+      const maxD = Math.max(160, H - GROUND_GAP - h / 2);
+      const ax = Math.min(anchorX, W - w / 2 - 8);
+      // Start swung slightly aside so the badge sways in like a pendulum.
+      const phi = -0.2;
+      const startX = ax + Math.sin(phi) * maxD;
+      const startY = ANCHOR_Y + Math.cos(phi) * maxD;
+
       const body: Body = {
         el,
-        x,
-        y,
+        rope,
+        x: startX,
+        y: startY,
         vx: 0,
         vy: 0,
         w,
         h,
         dragging: false,
-        targetX: x,
-        targetY: y,
+        targetX: startX,
+        targetY: startY,
       };
-      // Fixed at viewport origin; translate3d alone places the center.
+
       el.style.position = "fixed";
       el.style.left = "0";
       el.style.top = "0";
@@ -154,8 +201,22 @@ function createGravitySystem() {
       el.style.cursor = "grab";
       el.style.touchAction = "none";
       el.style.userSelect = "none";
-      render(body);
+      rope.style.position = "fixed";
+
       bodies.push(body);
+
+      // Paint the first frame immediately (no flash at the DOM position).
+      const hookX = startX;
+      const hookY = startY - h / 2;
+      const rdx = hookX - ax;
+      const rdy = hookY - ANCHOR_Y;
+      const rd = Math.hypot(rdx, rdy) || 1;
+      const rdeg = (Math.atan2(-rdx, rdy) * 180) / Math.PI;
+      el.style.transform = `translate3d(${startX - w / 2}px, ${
+        startY - h / 2
+      }px, 0) rotate(${rdeg}deg)`;
+      rope.style.height = `${rd}px`;
+      rope.style.transform = `translate3d(${ax}px, 0px, 0) rotate(${rdeg}deg)`;
     },
     destroy() {
       cancelAnimationFrame(rafId);
@@ -185,21 +246,23 @@ export default function HomeShell({
 }: HomeShellProps) {
   const [introDone, setIntroDone] = useState(false);
   const badgeRef = useRef<HTMLDivElement>(null);
+  const ropeRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setIntroDone(true), INTRO_DURATION);
     return () => clearTimeout(t);
   }, []);
 
-  // Gravity only kicks in once the intro has handed off, so the badge drops
-  // into view instead of falling while the screen is still covered.
+  // Lace physics only kicks in once the intro has handed off, so the badge
+  // sways into view instead of moving while the screen is still covered.
   useEffect(() => {
     if (!introDone) return;
     const el = badgeRef.current;
-    if (!el) return;
-    const sys = createGravitySystem();
+    const rope = ropeRef.current;
+    if (!el || !rope) return;
+    const sys = createLanyardSystem();
     const r = el.getBoundingClientRect();
-    sys.add(el, r.left + r.width / 2, r.top + r.height / 2);
+    sys.add(el, rope, r.left + r.width / 2);
     return () => sys.destroy();
   }, [introDone]);
 
@@ -265,32 +328,37 @@ export default function HomeShell({
             </div>
           </div>
 
-          {/* Draggable ID badge — drops in with gravity once the intro ends */}
+          {/* ID lace — thick string anchored at the top edge of the screen,
+              running down to the badge (length/tilt updated every frame) */}
+          <div
+            ref={ropeRef}
+            className="hero-anim hero-fade hero-d4 pointer-events-none fixed left-0 top-0 z-[15] w-[3px] origin-top-left rounded-full bg-gradient-to-b from-white/10 via-white/30 to-white/50"
+            style={{ height: "320px", willChange: "transform" }}
+          >
+            {/* Metal clip at the bottom end of the lace */}
+            <span className="absolute -bottom-2 left-1/2 h-5 w-4 -translate-x-1/2 rounded-[3px] border border-white/40 bg-white/15">
+              <span className="absolute left-1/2 top-1.5 h-3 w-px -translate-x-1/2 bg-white/40" />
+            </span>
+          </div>
+
+          {/* Draggable ID badge — hangs from the lace, sways like a pendulum,
+              and is rope-constrained so it never touches the ground */}
           <div
             ref={badgeRef}
-            className="hero-anim hero-fade hero-d4 absolute right-6 top-[16%] w-40 rounded-xl border border-white/10 bg-black/50 p-3 shadow-2xl backdrop-blur-sm sm:right-12 sm:w-48 lg:right-16"
+            className="hero-anim hero-fade hero-d4 absolute right-6 top-[16%] w-48 rounded-xl border border-white/10 bg-black/50 p-3 shadow-2xl backdrop-blur-sm sm:right-12 sm:w-56 lg:right-16 lg:w-60"
           >
-            {/* ID lace — string + clip hanging above the badge (moves and
-                swings with the badge since it's attached to it) */}
-            <div className="pointer-events-none absolute bottom-full left-1/2 flex -translate-x-1/2 flex-col items-center">
-              <div className="h-16 w-px bg-gradient-to-b from-white/5 via-white/25 to-white/45 sm:h-20" />
-              <div className="-mt-px flex h-4 w-3.5 items-center justify-center rounded-[2px] border border-white/35 bg-white/10">
-                <div className="h-2 w-px bg-white/30" />
-              </div>
-            </div>
-
             {/* Slot hole where the clip meets the card */}
-            <div className="mx-auto mb-2 h-1.5 w-9 rounded-full bg-white/15 ring-1 ring-white/10" />
+            <div className="mx-auto mb-2 h-2 w-10 rounded-full bg-white/15 ring-1 ring-white/10" />
 
             <div className="overflow-hidden rounded-lg border border-white/15">
               <img
                 src="/id-photo.jpg"
                 alt="Profile ID"
-                className="h-36 w-full object-cover object-top sm:h-44"
+                className="h-44 w-full object-cover object-top sm:h-52 lg:h-56"
                 draggable={false}
               />
             </div>
-            <div className="mt-2 flex items-center justify-between text-[9px] uppercase tracking-[0.18em] text-white/60">
+            <div className="mt-2 flex items-center justify-between text-[10px] uppercase tracking-[0.18em] text-white/60">
               <span>ID CARD</span>
               <span className="text-white/40">✦ grab me</span>
             </div>
