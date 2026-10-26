@@ -131,3 +131,147 @@ body {
 .btn-danger:hover {
   border-color: #f87171;
 }
+
+/* ============================================================
+   ANIMATIONS — keeps your existing color palette intact
+   ============================================================ */
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(28px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.94); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes float {
+  0% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+  100% { transform: translateY(0); }
+}
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 0 0 var(--accent-soft); }
+  50% { box-shadow: 0 0 24px 8px var(--accent-soft); }
+}
+
+/* Entrance animations (run once on load) */
+.animate-fade-in {
+  animation: fadeIn 0.8s ease-out forwards;
+}
+.animate-slide-up {
+  animation: slideUp 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.animate-scale-in {
+  animation: scaleIn 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.animate-shimmer {
+  background-size: 200% auto;
+  animation: shimmer 3s linear infinite;
+}
+.animate-float {
+  animation: float 7s ease-in-out infinite;
+}
+.animate-pulse-glow {
+  animation: pulseGlow 4s ease-in-out infinite;
+}
+
+/* Scroll-reveal: triggers when element enters viewport */
+.reveal {
+  opacity: 0;
+  transform: translateY(34px);
+  transition: opacity 0.9s cubic-bezier(0.22, 1, 0.36, 1), transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Enhanced card hover */
+.card-lift {
+  transition: all 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.card-lift:hover {
+  transform: translateY(-6px);
+  border-color: var(--accent);
+  box-shadow: 0 24px 48px -14px rgba(0, 0, 0, 0.5);
+}
+
+/* Button press + glow */
+.btn {
+  transition: all 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.btn:active {
+  transform: scale(0.96);
+}
+.btn-primary:hover {
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.45);
+}
+
+/* Gradient text shimmer variant */
+.gradient-text-shimmer {
+  background: linear-gradient(120deg, var(--accent), #a855f7, var(--accent));
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer 3s linear infinite;
+}
+
+/* Nav link underline */
+.nav-link {
+  position: relative;
+  transition: color 0.2s ease;
+}
+.nav-link::after {
+  content: "";
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background: var(--accent);
+  transition: width 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.nav-link:hover::after {
+  width: 100%;
+}
+
+/* Avatar pill float */
+.avatar-pill {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.avatar-pill:hover {
+  transform: scale(1.1);
+  box-shadow: 0 0 20px var(--accent-soft);
+}
+
+/* Section heading reveal line */
+.section-head {
+  position: relative;
+  display: inline-block;
+}
+.section-head::before {
+  content: "";
+  position: absolute;
+  left: -0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0.35rem;
+  height: 1.4rem;
+  background: var(--accent);
+  border-radius: 999px;
+  opacity: 0;
+  transition: opacity 0.5s ease, width 0.5s ease;
+}
+.section-head.reveal-line::before {
+  opacity: 1;
+  width: 0.35rem;
+}
