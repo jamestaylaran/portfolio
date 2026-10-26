@@ -600,14 +600,15 @@ export default function GameCanvas() {
       const seed = frame * 0.01;
       ctx.fillStyle = "#e7e7ef";
       for (let i = 0; i < 120; i++) {
-        const r = (Math.sin(i * 123.45 + seed) * 10000) % 1;
-        const g = (Math.cos(i * 97.13 + seed) * 10000) % 1;
+        const r = Math.abs((Math.sin(i * 123.45 + seed) * 10000) % 1);
+        const g = Math.abs((Math.cos(i * 97.13 + seed) * 10000) % 1);
         const x = ((i * 137.5 + frame * 0.15) % CANVAS_W) * (0.7 + r * 0.6);
         const y = ((i * 73.3 + frame * 0.08) % CANVAS_H) * (0.7 + g * 0.6);
-        const alpha = 0.4 + r * 0.6;
+        const alpha = Math.max(0, Math.min(1, 0.4 + r * 0.6));
+        const radius = Math.max(0.5, 1 + Math.abs(g) * 1.2);
         ctx.globalAlpha = alpha;
         ctx.beginPath();
-        ctx.arc(x, y, 1 + g * 1.2, 0, Math.PI * 2);
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
         ctx.fill();
       }
       ctx.globalAlpha = 1;

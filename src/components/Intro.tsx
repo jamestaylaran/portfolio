@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useLayoutEffect } from "react";
 
 /**
  * Full-screen intro matching your spec:
@@ -13,18 +13,18 @@ import { useEffect } from "react";
  * Header is hidden while intro plays.
  */
 export default function Intro() {
-  useEffect(() => {
+  useLayoutEffect(() => {
     document.body.classList.add("intro-active");
     return () => document.body.classList.remove("intro-active");
   }, []);
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-background flex flex-col items-center justify-center relative"
+      className="fixed inset-0 z-[9999] bg-background min-h-screen flex flex-col items-center justify-center relative"
       aria-hidden="true"
     >
-      {/* Three circular icons, slide up one by one with 1s interval */}
-      <div className="flex gap-6 mb-12">
+      {/* Three circular icons, slide up one by one with 0.5s interval */}
+      <div className="flex gap-4 mb-6">
         <div
           className="w-12 h-12 rounded-full border border-border flex items-center justify-center text-[11px] font-mono text-muted intro-icon intro-icon-delay-0"
         >
@@ -54,7 +54,7 @@ export default function Intro() {
 
       {/* URL fades in after the words */}
       <div
-        className="mt-16 rounded-full border border-border bg-surface px-6 py-2.5 text-xs text-muted intro-url"
+        className="mt-8 rounded-full border border-border bg-surface px-6 py-2.5 text-xs text-muted intro-url"
       >
         www.rifiq.vercel.app
       </div>
