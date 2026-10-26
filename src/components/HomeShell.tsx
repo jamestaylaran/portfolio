@@ -28,6 +28,11 @@ const GROUND_GAP = 120; // minimum clearance between badge and the floor
 const ANCHOR_Y = 0; // lace is anchored at the very top edge of the viewport
 const MAX_ANGLE = 0.62; // ~35° max swing from vertical — stays upright
 const MAX_SPEED = 14; // px/frame cap so throws stay graceful, never violent
+const ROPE_K = 0.2; // lace spring stiffness — bungee catch that bounces
+const ROPE_DAMP = 0.08; // softens each successive bounce
+const HARD_STRETCH = 1.12; // lace never stretches past 12% of its length
+const RESTITUTION = 0.5; // energy kept when a hard impact rebounds
+const BOUNCE_VN = 3; // min outward speed that triggers a rebound
 
 function createLanyardSystem() {
   const bodies: Body[] = [];
@@ -77,55 +82,74 @@ function createLanyardSystem() {
       const maxD = Math.max(160, H - GROUND_GAP - b.h / 2);
       const ax = Math.min(anchorX, W - b.w / 2 - 8);
 
+      // --- forces (computed from the current position) --------------------
       if (b.dragging) {
-        // Spring toward the pointer, clamped inside the lace length.
-        let tx = b.targetX;
-        let ty = b.targetY;
-        const ddx = tx - ax;
-        const ddy = ty - ANCHOR_Y;
-        const dd = Math.hypot(ddx, ddy) || 1;
-        if (dd > maxD) {
-          tx = ax + (ddx / dd) * maxD;
-          ty = ANCHOR_Y + (ddy / dd) * maxD;
-        }
-        b.vx = (tx - b.x) * 0.3;
-        b.vy = (ty - b.y) * 0.3;
-        b.x += b.vx;
-        b.y += b.vy;
+        // Damped spring toward the pointer.
+        b.vx = (b.vx + (b.targetX - b.x) * 0.32) * 0.9;
+        b.vy = (b.vy + (b.targetY - b.y) * 0.32) * 0.9;
       } else {
         b.vy += GRAVITY;
-        b.vx *= AIR_DRAG;
-        b.vy *= AIR_DRAG;
-        b.x += b.vx;
-        b.y += b.vy;
       }
 
-      // Rope sphere + swing cone clamp. The cone is what keeps the card
-      // upright: it can lean at most 35° either way, never past horizontal,
-      // never up near the anchor.
+      // Bungee lace: elastic past its length, so a dropped badge gets caught
+      // and bounces back instead of snapping dead.
       const dx = b.x - ax;
       const dy = b.y - ANCHOR_Y;
       const d = Math.hypot(dx, dy) || 1;
-      const ang = Math.atan2(dx, dy); // 0 = straight down
-      const cAng = Math.max(-MAX_ANGLE, Math.min(MAX_ANGLE, ang));
-      const cD = Math.min(d, maxD);
-      if (cAng !== ang || cD !== d) {
-        b.x = ax + Math.sin(cAng) * cD;
-        b.y = ANCHOR_Y + Math.cos(cAng) * cD;
-        if (!b.dragging) {
-          // Project velocity onto what's still allowed: inward radial motion
-          // (rope limit) and tangential motion (cone limit).
-          const nx = Math.sin(cAng);
-          const ny = Math.cos(cAng); // radial, outward
-          const tnx = Math.cos(cAng);
-          const tny = -Math.sin(cAng); // tangent
-          const vn = b.vx * nx + b.vy * ny;
-          const vt = b.vx * tnx + b.vy * tny;
-          const vr = vn > 0 ? 0 : vn;
-          const keepTan = cAng === ang;
-          b.vx = nx * vr + tnx * (keepTan ? vt : 0);
-          b.vy = ny * vr + tny * (keepTan ? vt : 0);
+      const nx = dx / d;
+      const ny = dy / d;
+      if (d > maxD) {
+        const stretch = d - maxD;
+        b.vx += -nx * stretch * ROPE_K;
+        b.vy += -ny * stretch * ROPE_K;
+        const vn = b.vx * nx + b.vy * ny;
+        if (vn > 0) {
+          b.vx -= nx * vn * ROPE_DAMP;
+          b.vy -= ny * vn * ROPE_DAMP;
         }
+      }
+
+      b.vx *= AIR_DRAG;
+      b.vy *= AIR_DRAG;
+
+      // --- integrate ------------------------------------------------------
+      b.x += b.vx;
+      b.y += b.vy;
+
+      // --- constraints ----------------------------------------------------
+      // Hard lace cap — if something moves faster than the lace can absorb,
+      // clamp it and rebound (the classic drop-it-and-it-bounces).
+      let cx2 = b.x - ax;
+      let cy2 = b.y - ANCHOR_Y;
+      const cd = Math.hypot(cx2, cy2) || 1;
+      if (cd > maxD * HARD_STRETCH) {
+        const cnx = cx2 / cd;
+        const cny = cy2 / cd;
+        b.x = ax + cnx * maxD * HARD_STRETCH;
+        b.y = ANCHOR_Y + cny * maxD * HARD_STRETCH;
+        const vn = b.vx * cnx + b.vy * cny;
+        if (vn > BOUNCE_VN && !b.dragging) {
+          // Impact too hard for the spring: bounce it back.
+          b.vx -= (1 + RESTITUTION) * vn * cnx;
+          b.vy -= (1 + RESTITUTION) * vn * cny;
+        } else if (vn > 0) {
+          b.vx -= vn * cnx;
+          b.vy -= vn * cny;
+        }
+      }
+
+      // Swing cone: keeps the card upright — max 35° from vertical.
+      const ang = Math.atan2(cx2, cy2); // 0 = straight down
+      const cAng = Math.max(-MAX_ANGLE, Math.min(MAX_ANGLE, ang));
+      if (cAng !== ang) {
+        b.x = ax + Math.sin(cAng) * cd;
+        b.y = ANCHOR_Y + Math.cos(cAng) * cd;
+        // Cancel the tangential velocity that pushed it past the cone.
+        const tnx = Math.cos(cAng);
+        const tny = -Math.sin(cAng);
+        const vt = b.vx * tnx + b.vy * tny;
+        b.vx -= tnx * vt;
+        b.vy -= tny * vt;
       }
 
       // Speed cap — no violent slingshots.
@@ -213,10 +237,13 @@ function createLanyardSystem() {
       const W = window.innerWidth;
       const maxD = Math.max(160, H - GROUND_GAP - h / 2);
       const ax = Math.min(anchorX, W - w / 2 - 8);
-      // Start gently swung aside so the badge sways in like a pendulum.
-      const phi = -0.18;
-      const startX = ax + Math.sin(phi) * maxD;
-      const startY = ANCHOR_Y + Math.cos(phi) * maxD;
+      // Entry: the badge starts up near the top edge (just below the navbar)
+      // and falls in — the lace feeds out as it drops, then catches it with
+      // a bounce.
+      const phi = -0.1;
+      const d0 = Math.min(h / 2 + 68, maxD * 0.55);
+      const startX = ax + Math.sin(phi) * d0;
+      const startY = ANCHOR_Y + Math.cos(phi) * d0;
 
       const body: Body = {
         el,
@@ -373,7 +400,7 @@ export default function HomeShell({
               running down to the badge (length/tilt updated every frame) */}
           <div
             ref={ropeRef}
-            className="hero-anim hero-fade hero-d4 pointer-events-none fixed left-0 top-0 z-[15] w-9 origin-top bg-[linear-gradient(90deg,#0d0d12_0%,#23232f_45%,#17171f_68%,#0a0a0f_100%)] shadow-[0_0_0_1px_rgba(255,255,255,0.08)] sm:w-10"
+            className="hero-anim hero-fade hero-d1 pointer-events-none fixed left-0 top-0 z-[15] w-9 origin-top bg-[linear-gradient(90deg,#0d0d12_0%,#23232f_45%,#17171f_68%,#0a0a0f_100%)] shadow-[0_0_0_1px_rgba(255,255,255,0.08)] sm:w-10"
             style={{ height: "320px", willChange: "transform" }}
           >
             {/* "ID CARD" printed repeatedly down the woven strap */}
@@ -401,7 +428,7 @@ export default function HomeShell({
               and is rope-constrained so it never touches the ground */}
           <div
             ref={badgeRef}
-            className="hero-anim hero-fade hero-d4 absolute right-6 top-[16%] w-52 rounded-xl border border-white/10 bg-black/50 p-3 shadow-2xl backdrop-blur-sm sm:right-12 sm:w-60 lg:right-16 lg:w-64"
+            className="hero-anim hero-fade hero-d1 absolute right-6 top-[16%] w-52 rounded-xl border border-white/10 bg-black/50 p-3 shadow-2xl backdrop-blur-sm sm:right-12 sm:w-60 lg:right-16 lg:w-64"
           >
             {/* Slot hole where the clip meets the card */}
             <div className="mx-auto mb-2 h-2 w-10 rounded-full bg-white/15 ring-1 ring-white/10" />
