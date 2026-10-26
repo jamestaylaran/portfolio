@@ -14,7 +14,7 @@ type HomeIntroShellProps = {
 };
 
 // How long the intro plays before handing off to the home page.
-const INTRO_DURATION = 4200;
+const INTRO_DURATION = 5000;
 
 export default function HomeIntroShell({
   profile,

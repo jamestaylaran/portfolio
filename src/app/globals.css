@@ -280,43 +280,52 @@ body {
    INTRO — directional word-by-word slide-ins
    ============================================================ */
 
-@keyframes slideInFromLeft {
-  from { opacity: 0; transform: translateX(-70px); }
-  to { opacity: 1; transform: translateX(0); }
+/* Icon animations - slide up chronologically, 1s interval */
+.intro-icon {
+  animation: slideInFromUp 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  opacity: 0;
+  transform: translateY(30px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
-@keyframes slideInFromRight {
-  from { opacity: 0; transform: translateX(70px); }
-  to { opacity: 1; transform: translateX(0); }
-}
-@keyframes slideInFromUp {
-  from { opacity: 0; transform: translateY(70px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-@keyframes slideInFromDown {
-  from { opacity: 0; transform: translateY(-70px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-@keyframes fadeOutSmooth {
-  from { opacity: 1; transform: scale(1); }
-  to { opacity: 0; transform: scale(0.96); }
-}
+.intro-icon-delay-0     { animation-delay: 0s;     }
+.intro-icon-delay-1000  { animation-delay: 1s;     }
+.intro-icon-delay-2000  { animation-delay: 2s;     }
 
-.intro-word {
+/* Intro word animations - 2s duration each */
+.intro-word-welcome {
+  animation: slideInFromLeft 2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  opacity: 0;
+  transform: translateX(-60px);
   display: inline-block;
-  will-change: transform, opacity;
+}
+.intro-word-to-my {
+  animation: slideInFromRight 2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  opacity: 0;
+  transform: translateX(60px);
+  display: inline-block;
+}
+.intro-word-portfolio-website {
+  animation: slideInFromUp 2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  opacity: 0;
+  transform: translateY(60px);
+  display: inline-block;
 }
 
-.intro-left  { animation: slideInFromLeft  0.85s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
-.intro-right { animation: slideInFromRight 0.85s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
-.intro-up    { animation: slideInFromUp    0.85s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
-.intro-down  { animation: slideInFromDown 0.85s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+/* Word delays */
+.intro-word-delay-0   { animation-delay: 0s;   }
+.intro-word-delay-400 { animation-delay: 400ms; }
+.intro-word-delay-800 { animation-delay: 800ms; }
+
+/* Intro URL fades in after words */
+.intro-url {
+  animation: fadeIn 1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  opacity: 0;
+  animation-delay: 2.2s;
+}
+
+/* Fade out for intro handoff */
 .intro-fade-out {
   animation: fadeOutSmooth 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
-
-.intro-delay-50  { animation-delay: 50ms;  }
-.intro-delay-150 { animation-delay: 150ms; }
-.intro-delay-250 { animation-delay: 250ms; }
-.intro-delay-350 { animation-delay: 350ms; }
-.intro-delay-450 { animation-delay: 450ms; }
-.intro-delay-600 { animation-delay: 600ms; }
