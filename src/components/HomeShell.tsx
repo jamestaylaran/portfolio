@@ -270,11 +270,23 @@ export default function HomeShell({
             ref={badgeRef}
             className="hero-anim hero-fade hero-d4 absolute right-6 top-[16%] w-40 rounded-xl border border-white/10 bg-black/50 p-3 shadow-2xl backdrop-blur-sm sm:right-12 sm:w-48 lg:right-16"
           >
+            {/* ID lace — string + clip hanging above the badge (moves and
+                swings with the badge since it's attached to it) */}
+            <div className="pointer-events-none absolute bottom-full left-1/2 flex -translate-x-1/2 flex-col items-center">
+              <div className="h-16 w-px bg-gradient-to-b from-white/5 via-white/25 to-white/45 sm:h-20" />
+              <div className="-mt-px flex h-4 w-3.5 items-center justify-center rounded-[2px] border border-white/35 bg-white/10">
+                <div className="h-2 w-px bg-white/30" />
+              </div>
+            </div>
+
+            {/* Slot hole where the clip meets the card */}
+            <div className="mx-auto mb-2 h-1.5 w-9 rounded-full bg-white/15 ring-1 ring-white/10" />
+
             <div className="overflow-hidden rounded-lg border border-white/15">
               <img
-                src="https://images.unsplash.com/photo-1507003211169-0a1272de8e00?w=400&h=500&fit=crop"
+                src="/id-photo.jpg"
                 alt="Profile ID"
-                className="h-36 w-full object-cover sm:h-44"
+                className="h-36 w-full object-cover object-top sm:h-44"
                 draggable={false}
               />
             </div>
