@@ -1,4 +1,4 @@
-import HomeIntroShell from "@/components/HomeIntroShell";
+import HomeShell from "@/components/HomeShell";
 import {
   getAchievements,
   getActivities,
@@ -6,8 +6,6 @@ import {
   getRoles,
 } from "@/lib/data";
 
-// Render at request time so edits from the dashboard appear immediately and the
-// build never needs database access.
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
@@ -19,7 +17,7 @@ export default async function HomePage() {
   ]);
 
   return (
-    <HomeIntroShell
+    <HomeShell
       profile={profile}
       achievements={achievements}
       roles={roles}

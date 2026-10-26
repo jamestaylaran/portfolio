@@ -12,6 +12,25 @@ import {
 const CANVAS_W = 960;
 const CANVAS_H = 640;
 
+type Difficulty = "easy" | "medium" | "hard" | "ultra";
+
+const DIFFICULTY: Record<Difficulty, {
+  label: string;
+  color: string;
+  spawnDivisor: number; // higher = slower enemy spawns
+  speedMult: number;
+  hpMult: number;
+  dmgMult: number;
+  fireRateMult: number; // higher = slower enemy shooting
+  playerHp: number;
+  scoreMult: number;
+}> = {
+  easy: { label: "Easy", color: "#34d399", spawnDivisor: 1.7, speedMult: 0.7, hpMult: 0.55, dmgMult: 0.6, fireRateMult: 1.6, playerHp: 160, scoreMult: 0.7 },
+  medium: { label: "Medium", color: "#fbbf24", spawnDivisor: 1.0, speedMult: 1.0, hpMult: 1.0, dmgMult: 1.0, fireRateMult: 1.0, playerHp: 100, scoreMult: 1.0 },
+  hard: { label: "Hard", color: "#f87171", spawnDivisor: 0.75, speedMult: 1.3, hpMult: 1.4, dmgMult: 1.3, fireRateMult: 0.85, playerHp: 80, scoreMult: 1.6 },
+  ultra: { label: "Ultra Hard", color: "#7c3aed", spawnDivisor: 0.5, speedMult: 1.7, hpMult: 2.1, dmgMult: 1.7, fireRateMult: 0.65, playerHp: 55, scoreMult: 2.5 },
+};
+
 type Vec = { x: number; y: number };
 
 // ---------------------------------------------------------------------------
@@ -343,20 +362,24 @@ export default function GameCanvas() {
   const rafRef = useRef<number>(0);
   const keysRef = useRef<Set<string>>(new Set());
   const mouseRef = useRef({ x: CANVAS_W / 2, y: CANVAS_H / 2 });
+  const mouseDownRef = useRef(false);
 
   const [state, setState] = useState<"menu" | "playing" | "gameover">("menu");
   const [score, setScore] = useState(0);
   const [wave, setWave] = useState(1);
   const [highScore, setHighScore] = useState(0);
+  const [difficulty, setDifficulty] = useState<"easy" | "medium" | "hard" | "ultra">("medium");
 
   // Refs mirror the display state so the fixed game loop always reads current
   // values without restarting (and resetting) on every frame.
   const scoreRef = useRef(0);
   const waveRef = useRef(1);
   const highScoreRef = useRef(0);
+  const difficultyRef = useRef<"easy" | "medium" | "hard" | "ultra">("medium");
   scoreRef.current = score;
   waveRef.current = wave;
   highScoreRef.current = highScore;
+  difficultyRef.current = difficulty;
 
   useEffect(() => {
     const stored = localStorage.getItem("spaceShooterHighScore");
@@ -406,6 +429,8 @@ export default function GameCanvas() {
     const ctx = canvas.getContext("2d")!;
 
     const player = new Player();
+    player.hp = DIFFICULTY[difficultyRef.current].playerHp;
+    player.maxHp = player.hp;
     const bullets: Bullet[] = [];
     const enemies: Enemy[] = [];
     const particles: Particle[] = [];
@@ -421,7 +446,15 @@ export default function GameCanvas() {
     function spawnEnemy() {
       const archs = archetypesRef.current;
       if (archs.length === 0) return;
-      const arch = archs[Math.floor(Math.random() * archs.length)];
+      const base = archs[Math.floor(Math.random() * archs.length)];
+      const diff = DIFFICULTY[difficultyRef.current];
+      const arch: NpcArchetype = {
+        ...base,
+        speed: base.speed * diff.speedMult,
+        hull: Math.max(1, Math.round(base.hull * diff.hpMult)),
+        shield: Math.round(base.shield * diff.hpMult),
+        fireRate: Math.max(10, Math.round(base.fireRate * diff.fireRateMult)),
+      };
       const side = Math.floor(Math.random() * 4);
       let x: number, y: number;
       if (side === 0) {
@@ -467,7 +500,8 @@ export default function GameCanvas() {
 
       frame++;
       const w = waveRef.current;
-      const baseSpawn = Math.max(20, 120 - w * 10);
+      const diff = DIFFICULTY[difficultyRef.current];
+      const baseSpawn = Math.max(15, Math.round((120 - w * 10) * diff.spawnDivisor));
       enemySpawnTimer++;
       if (enemySpawnTimer > baseSpawn) {
         const count = 1 + Math.floor(w / 3);
@@ -475,8 +509,8 @@ export default function GameCanvas() {
         enemySpawnTimer = 0;
       }
 
-      // Player shooting
-      if (player.shootTimer <= 0 && keysRef.current.has(" ")) {
+      // Player shooting (left click or SPACE)
+      if (player.shootTimer <= 0 && (mouseDownRef.current || keysRef.current.has(" "))) {
         player.shootTimer = 14 - Math.min(w, 6);
         const vx = Math.cos(player.angle) * 9;
         const vy = Math.sin(player.angle) * 9;
@@ -500,7 +534,7 @@ export default function GameCanvas() {
               e.y,
               (dx / dist) * e.archetype.bulletSpeed,
               (dy / dist) * e.archetype.bulletSpeed,
-              e.archetype.bulletDamage,
+              Math.round(e.archetype.bulletDamage * diff.dmgMult),
               "enemy",
             ),
           );
@@ -523,7 +557,7 @@ export default function GameCanvas() {
               enemy.hp -= bullet.damage;
             }
             if (enemy.dead()) {
-              scoreRef.current += enemy.archetype.scoreValue;
+              scoreRef.current += Math.round(enemy.archetype.scoreValue * diff.scoreMult);
               setScore(scoreRef.current);
               explode(enemy.x, enemy.y, enemy.archetype.color, 14, 5);
               enemies.splice(e, 1);
@@ -638,13 +672,17 @@ export default function GameCanvas() {
       ctx.fillText(`WAVE ${waveRef.current}`, 20, 30);
       ctx.fillText(`SCORE ${scoreRef.current}`, 20, 52);
       ctx.fillText(`HI ${highScoreRef.current}`, CANVAS_W - 100, 30);
+      const diff = DIFFICULTY[difficultyRef.current];
+      ctx.fillStyle = diff.color;
+      ctx.font = "bold 13px sans-serif";
+      ctx.fillText(`MODE: ${diff.label}`, CANVAS_W - 150, 30);
       ctx.textAlign = "right";
       ctx.fillText(`ARCHIVE: /game#archive`, CANVAS_W - 20, 52);
       ctx.textAlign = "left";
       ctx.fillStyle = "#94a3b8";
       ctx.font = "12px sans-serif";
       ctx.fillText(
-        "WASD/Arrows move • Mouse aims • SPACE to shoot",
+        "WASD/Arrows move • Mouse aims • LEFT CLICK or SPACE to shoot",
         20,
         CANVAS_H - 12,
       );
@@ -717,6 +755,12 @@ export default function GameCanvas() {
       mouseRef.current.x = e.clientX - rect.left;
       mouseRef.current.y = e.clientY - rect.top;
     };
+    const onMouseDown = (e: MouseEvent) => {
+      if (e.button === 0) mouseDownRef.current = true;
+    };
+    const onMouseUp = (e: MouseEvent) => {
+      if (e.button === 0) mouseDownRef.current = false;
+    };
     const onCanvasClick = () => {
       ensureAudio();
       if (state === "menu") startGame();
@@ -726,6 +770,8 @@ export default function GameCanvas() {
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
     window.addEventListener("mousemove", onMove);
+    window.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("mouseup", onMouseUp);
     canvasRef.current?.addEventListener("click", onCanvasClick);
     window.addEventListener("keydown", (e) => {
       if (e.code === "Space") {
@@ -740,6 +786,8 @@ export default function GameCanvas() {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("mouseup", onMouseUp);
       canvasRef.current?.removeEventListener("click", onCanvasClick);
     };
   }, [state, startGame, restart]);
@@ -781,9 +829,27 @@ export default function GameCanvas() {
               Defend the frontier. Enemy ships and levels designed from real
               NASA/JPL celestial data.
             </p>
+            <div className="flex gap-2">
+              {(["easy", "medium", "hard", "ultra"] as const).map((d) => {
+                const cfg = DIFFICULTY[d];
+                return (
+                  <button
+                    key={d}
+                    onClick={() => setDifficulty(d)}
+                    className={`px-4 py-2 rounded-lg text-xs font-bold transition border ${
+                      difficulty === d
+                        ? `bg-[#050508] text-white border-${cfg.color === "#34d399" ? "green" : cfg.color === "#fbbf24" ? "yellow" : cfg.color === "#f87171" ? "red" : "purple"}-500`
+                        : "bg-surface-2 border-border text-muted hover:bg-surface"
+                    }`}
+                  >
+                    {cfg.label}
+                  </button>
+                );
+              })}
+            </div>
             <button
               onClick={startGame}
-              className="px-8 py-3 bg-[#22d3ee] text-[#050508] font-bold rounded-xl shadow-[0_0_20px_rgba(34,211,234,0.5)] hover:shadow-[0_0_30px_rgba(34,211,234,0.8)] transition"
+              className="px-8 py-3 mt-4 bg-[#22d3ee] text-[#050508] font-bold rounded-xl shadow-[0_0_20px_rgba(34,211,234,0.5)] hover:shadow-[0_0_30px_rgba(34,211,234,0.8)] transition"
             >
               INITIATE SEQUENCE
             </button>
@@ -795,6 +861,7 @@ export default function GameCanvas() {
               CRITICAL FAILURE
             </h2>
             <p className="text-[#94a3b8] text-sm">Final Score: {score}</p>
+            <p className="text-xs text-[#6b7280]">Mode: {DIFFICULTY[difficultyRef.current].label}</p>
             <button
               onClick={restart}
               className="px-8 py-3 bg-[#f87171] text-[#050508] font-bold rounded-xl shadow-[0_0_20px_rgba(248,113,113,0.5)] hover:shadow-[0_0_30px_rgba(248,113,113,0.8)] transition"
