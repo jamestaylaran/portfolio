@@ -30,6 +30,10 @@ type Body = {
   laceLen: number; // design length: taut when the badge hangs at rest
   segW: number; // segment width (36/40) — for centering on the curve
   segH: number; // segment base height — scaleY reference
+  flip: number; // current card-flip angle (0 = photo, 180 = info)
+  flipV: number; // flip angular velocity
+  flipTarget: number; // which face should be showing
+  flipEl: HTMLElement | null; // inner wrapper that rotates on the Y axis
 };
 
 const GROUND_GAP = 120; // minimum clearance between badge and the floor
@@ -52,6 +56,10 @@ function createLanyardSystem() {
   let anchorX = 0;
   let anchorEl: HTMLElement | null = null;
   let lastSy = 0; // last seen window.scrollY — the lanyard rides the landing
+  let downX = 0; // pointer where the grab started — tells tap from drag
+  let downY = 0;
+  let downT = 0;
+  let tapMoved = false;
 
   // The lace hangs from directly below the Involvement nav link (re-measured
   // on resize). Its ANCHOR Y follows window scroll, so the whole lanyard
@@ -99,6 +107,11 @@ function createLanyardSystem() {
     const slotX = b.x + (b.h / 2) * Math.sin(th);
     const slotY = b.y - (b.h / 2) * Math.cos(th);
     b.el.style.transform = `translate3d(${slotX - b.w / 2}px, ${slotY}px, 0) rotate(${thDeg}deg)`;
+    // The flip spins on its own inner axis (card-center perspective) so the
+    // pendulum tilt and the flip never fight each other.
+    if (b.flipEl) {
+      b.flipEl.style.transform = `perspective(800px) rotateY(${b.flip}deg)`;
+    }
 
     // --- 3D lace ---------------------------------------------------------
     // BEND: the strap follows a quadratic bezier from the anchor to the
@@ -263,6 +276,17 @@ function createLanyardSystem() {
       const twistTarget = Math.max(-58, Math.min(58, b.vxS * 4.5));
       b.twist += (twistTarget - b.twist) * 0.12;
 
+      // Card flip: spring toward the target face with a slight overshoot,
+      // like snapping a real ID card over.
+      const fdiff = b.flipTarget - b.flip;
+      if (Math.abs(fdiff) < 0.08 && Math.abs(b.flipV) < 0.08) {
+        b.flip = b.flipTarget;
+        b.flipV = 0;
+      } else {
+        b.flipV = (b.flipV + fdiff * 0.14) * 0.84;
+        b.flip += b.flipV;
+      }
+
       render(b, ax, ay, time);
     }
 
@@ -276,6 +300,10 @@ function createLanyardSystem() {
         Math.abs(e.clientY - b.y) <= b.h / 2
       ) {
         grabbed = b;
+        downX = e.clientX;
+        downY = e.clientY;
+        downT = performance.now();
+        tapMoved = false;
         b.dragging = true;
         b.targetX = e.clientX;
         b.targetY = e.clientY;
@@ -292,16 +320,31 @@ function createLanyardSystem() {
 
   const onPointerMove = (e: PointerEvent) => {
     if (!grabbed) return;
+    if (
+      Math.abs(e.clientX - downX) > 6 ||
+      Math.abs(e.clientY - downY) > 6
+    ) {
+      tapMoved = true;
+    }
     grabbed.targetX = e.clientX;
     grabbed.targetY = e.clientY;
   };
 
-  const onPointerUp = () => {
+  const onPointerUp = (e?: Event) => {
     if (!grabbed) return;
-    grabbed.dragging = false;
-    grabbed.el.style.cursor = "grab";
-    grabbed.vx *= 0.5;
-    grabbed.vy *= 0.5;
+    const b = grabbed;
+    b.dragging = false;
+    b.el.style.cursor = "grab";
+    b.vx *= 0.5;
+    b.vy *= 0.5;
+    // A quick tap (barely moved) flips the card; a real drag throws it.
+    if (
+      !tapMoved &&
+      e?.type === "pointerup" &&
+      performance.now() - downT < 500
+    ) {
+      b.flipTarget = b.flipTarget === 0 ? 180 : 0;
+    }
     grabbed = null;
   };
 
@@ -363,6 +406,10 @@ function createLanyardSystem() {
         laceLen,
         segW: segs[0] ? segs[0].offsetWidth : 36,
         segH: laceLen / Math.max(1, segs.length) + 2,
+        flip: 0,
+        flipV: 0,
+        flipTarget: 0,
+        flipEl: el.querySelector<HTMLElement>(".badge-flipper"),
       };
 
       el.style.position = "fixed";
@@ -525,25 +572,79 @@ export default function HomeShell({
           </div>
 
           {/* Draggable ID badge — hangs from the lace, sways like a pendulum,
-              and is rope-constrained so it never touches the ground */}
-          <div
-            ref={badgeRef}
-            className="hero-anim hero-fade hero-d1 absolute right-6 top-[16%] w-52 rounded-xl border border-white/10 bg-black/50 p-3 shadow-2xl backdrop-blur-sm sm:right-12 sm:w-60 lg:right-16 lg:w-64"
-          >
-            {/* Slot hole where the clip meets the card */}
-            <div className="mx-auto mb-2 h-2 w-10 rounded-full bg-white/15 ring-1 ring-white/10" />
+              and flips over on tap: photo on the front, short info on the
+              back. The fade lives on the wrapper so the inner 3D flip
+              never gets flattened during the fade-in. */}
+          <div className="hero-anim hero-fade hero-d1 absolute right-6 top-[16%] z-[30] w-52 sm:right-12 sm:w-60 lg:right-16 lg:w-64">
+            <div
+              ref={badgeRef}
+              className="relative w-52 sm:w-60 lg:w-64"
+              style={{ transformStyle: "preserve-3d" }}
+            >
+              <div className="badge-flipper">
+                {/* FRONT — photo */}
+                <div className="badge-face rounded-xl border border-white/10 bg-black/50 p-3 shadow-2xl backdrop-blur-sm">
+                  {/* Slot hole where the clip meets the card */}
+                  <div className="mx-auto mb-2 h-2 w-10 rounded-full bg-white/15 ring-1 ring-white/10" />
 
-            <div className="overflow-hidden rounded-lg border border-white/15">
-              <img
-                src="/id-photo.jpg"
-                alt="Profile ID"
-                className="h-48 w-full object-cover object-top sm:h-56 lg:h-64"
-                draggable={false}
-              />
-            </div>
-            <div className="mt-2 flex items-center justify-between text-[10px] uppercase tracking-[0.18em] text-white/60">
-              <span>ID CARD</span>
-              <span className="text-white/40">✦ grab me</span>
+                  <div className="relative overflow-hidden rounded-lg border border-white/15">
+                    <img
+                      src="/id-photo.jpg"
+                      alt="Profile ID"
+                      className="h-48 w-full object-cover object-top sm:h-56 lg:h-64"
+                      draggable={false}
+                    />
+                    <span
+                      className="absolute right-2 top-1.5 text-xs text-white/70 [text-shadow:0_1px_3px_rgba(0,0,0,0.9)]"
+                      title="Tap to flip"
+                    >
+                      ↻
+                    </span>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between text-[10px] uppercase tracking-[0.18em] text-white/60">
+                    <span>ID CARD</span>
+                    <span className="text-white/40">✦ grab me</span>
+                  </div>
+                </div>
+
+                {/* BACK — short info */}
+                <div
+                  className="badge-face absolute inset-0 flex flex-col rounded-xl border border-white/10 bg-black/50 p-3 shadow-2xl backdrop-blur-sm"
+                  style={{ transform: "rotateY(180deg)" }}
+                >
+                  <div className="mx-auto mb-2 h-2 w-10 rounded-full bg-white/15 ring-1 ring-white/10" />
+
+                  <div className="flex flex-1 flex-col justify-center gap-3">
+                    <div>
+                      <p className="text-[9px] uppercase tracking-[0.22em] text-white/45">
+                        Nickname
+                      </p>
+                      <p className="text-xl font-bold tracking-wide text-white">
+                        RYOTA
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] uppercase tracking-[0.22em] text-white/45">
+                        Age
+                      </p>
+                      <p className="text-xl font-bold text-white">22</p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] uppercase tracking-[0.22em] text-white/45">
+                        Motto
+                      </p>
+                      <p className="text-[13px] italic leading-snug text-white/85">
+                        “Turning ideas into interfaces — one pixel at a time.”
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-2 flex items-center justify-between text-[10px] uppercase tracking-[0.18em] text-white/60">
+                    <span>ID CARD</span>
+                    <span className="text-white/40">↻ tap to flip</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </section>

@@ -443,3 +443,19 @@ body:has(.intro-overlay) .site-header {
   transform-origin: 50% 100%;
   will-change: transform;
 }
+
+/* ============================================================
+   Flippable ID badge — the physics drives the outer card
+   (pendulum tilt) and .badge-flipper (rotateY flip); each face
+   hides its back side so only the active face renders.
+   ============================================================ */
+.badge-flipper {
+  position: relative;
+  transform-style: preserve-3d;
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
+.badge-face {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
