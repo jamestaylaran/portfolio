@@ -13,6 +13,9 @@ import type { Profile, Achievement, Role, Activity } from "@/lib/types";
 type Body = {
   el: HTMLElement;
   rope: HTMLElement;
+  segs: HTMLElement[]; // woven strap segments (3D bend + twist)
+  shades: HTMLElement[]; // per-segment darkening as it turns edge-on
+  clasp: HTMLElement; // snap-hook at the strap's end
   x: number; // center X (viewport px)
   y: number; // center Y (viewport px)
   vx: number;
@@ -22,10 +25,16 @@ type Body = {
   dragging: boolean;
   targetX: number;
   targetY: number;
+  vxS: number; // smoothed lateral speed — drives the ribbon twist
+  twist: number; // smoothed twist in degrees (grows toward the badge)
+  laceLen: number; // design length: taut when the badge hangs at rest
+  segW: number; // segment width (36/40) — for centering on the curve
+  segH: number; // segment base height — scaleY reference
 };
 
 const GROUND_GAP = 120; // minimum clearance between badge and the floor
 const ANCHOR_Y = 0; // lace is anchored at the very top edge of the viewport
+const LACE_SEGS = 14; // strap segments along the bend curve
 const MAX_ANGLE = 0.62; // ~35° max swing from vertical — stays upright
 const MAX_SPEED = 14; // px/frame cap so throws stay graceful, never violent
 const ROPE_K = 0.2; // lace spring stiffness — bungee catch that bounces
@@ -41,18 +50,47 @@ function createLanyardSystem() {
   let rafId = 0;
   let grabbed: Body | null = null;
   let anchorX = 0;
+  let anchorEl: HTMLElement | null = null;
+  let lastSy = 0; // last seen window.scrollY — the lanyard rides the landing
 
-  // The lace hangs from the top center of the viewport; re-measured on
-  // resize so the badge stays centered.
+  // The lace hangs from directly below the Involvement nav link (re-measured
+  // on resize). Its ANCHOR Y follows window scroll, so the whole lanyard
+  // stays on the landing and scrolls away with the hero.
   const updateAnchor = () => {
-    anchorX = window.innerWidth / 2;
+    if (anchorEl) {
+      const r = anchorEl.getBoundingClientRect();
+      anchorX = r.left + r.width / 2;
+    } else {
+      anchorX = window.innerWidth / 2;
+    }
+    for (const b of bodies) {
+      const s0 = b.segs[0];
+      if (s0) b.segW = s0.offsetWidth;
+    }
   };
   window.addEventListener("resize", updateAnchor);
 
-  function render(b: Body, ax: number) {
-    // Rope angle: direction from the anchor down to the badge center.
+  // Quadratic bezier point — the lace's bend curve.
+  function bez(
+    t: number,
+    x0: number,
+    y0: number,
+    cx: number,
+    cy: number,
+    x1: number,
+    y1: number
+  ) {
+    const u = 1 - t;
+    return {
+      x: u * u * x0 + 2 * u * t * cx + t * t * x1,
+      y: u * u * y0 + 2 * u * t * cy + t * t * y1,
+    };
+  }
+
+  function render(b: Body, ax: number, ay: number, time: number) {
+    // Badge tilt: direction from the anchor down to the badge center.
     const dx = b.x - ax;
-    const dy = b.y - ANCHOR_Y;
+    const dy = b.y - ay;
     const th = Math.atan2(-dx, dy); // 0 = hanging straight down
     const thDeg = (th * 180) / Math.PI;
 
@@ -62,21 +100,67 @@ function createLanyardSystem() {
     const slotY = b.y - (b.h / 2) * Math.cos(th);
     b.el.style.transform = `translate3d(${slotX - b.w / 2}px, ${slotY}px, 0) rotate(${thDeg}deg)`;
 
-    const rdx = slotX - ax;
-    const rdy = slotY - ANCHOR_Y;
-    const rd = Math.hypot(rdx, rdy) || 1;
-    const rdeg = (Math.atan2(-rdx, rdy) * 180) / Math.PI;
-    b.rope.style.height = `${rd}px`;
-    b.rope.style.transform = `translate3d(${ax}px, 0px, 0) rotate(${rdeg}deg)`;
+    // --- 3D lace ---------------------------------------------------------
+    // BEND: the strap follows a quadratic bezier from the anchor to the
+    // slot. Its control point sags under gravity (deeper when the badge is
+    // lifted and the lace has slack) and lags opposite the badge's motion,
+    // so the strap bows like a real cord instead of a ruler-straight line.
+    const n = b.segs.length;
+    const dist = Math.hypot(slotX - ax, slotY - ay) || 1;
+    const slack = Math.max(0, b.laceLen - dist);
+    const sag = 8 + Math.min(46, slack * 0.5) + Math.max(0, b.vy) * 2;
+    const ccx = (ax + slotX) / 2 - b.vxS * 3;
+    const ccy = (ay + slotY) / 2 + sag;
+
+    // TWIST: each segment gets a rotateY that grows toward the badge plus a
+    // slow ripple that never stops — the woven strap keeps flipping and
+    // turning in 3D like a real ribbon.
+    let lastDeg = 0;
+    for (let i = 0; i < n; i++) {
+      const p0 = bez(i / n, ax, ay, ccx, ccy, slotX, slotY);
+      const p1 = bez((i + 1) / n, ax, ay, ccx, ccy, slotX, slotY);
+      const sx = p1.x - p0.x;
+      const sy = p1.y - p0.y;
+      const segLen = Math.hypot(sx, sy) + 1.5;
+      const deg = (Math.atan2(-sx, sy) * 180) / Math.PI;
+      const rotY =
+        b.twist * ((i + 1) / n) + Math.sin(time * 0.0015 + i * 0.75) * 6;
+
+      b.segs[i].style.transform = `translate3d(${p0.x - b.segW / 2}px, ${p0.y}px, 0) rotate(${deg}deg) scaleY(${segLen / b.segH}) perspective(520px) rotateY(${rotY}deg)`;
+      // Edge-on segments go dark, like a ribbon catching less light.
+      b.shades[i].style.opacity = (
+        (1 - Math.abs(Math.cos((rotY * Math.PI) / 180))) *
+        0.5
+      ).toFixed(3);
+      lastDeg = deg;
+    }
+
+    // Snap-hook at the strap's end, pivoting right where it meets the slot.
+    b.clasp.style.transform = `translate3d(${slotX}px, ${slotY + 10}px, 0) translate(-50%, -100%) rotate(${lastDeg}deg)`;
   }
 
   function step() {
     const W = window.innerWidth;
     const H = window.innerHeight;
+    const time = performance.now();
+
+    // The whole lanyard rides the landing: when the page scrolls, the anchor
+    // and the badge move with it 1:1, so the badge only lives on the hero
+    // and scrolls away with it instead of hovering over the content below.
+    const sy = window.scrollY;
+    const dsy = sy - lastSy;
+    if (dsy !== 0) {
+      for (const b of bodies) {
+        b.y -= dsy;
+        b.targetY -= dsy;
+      }
+      lastSy = sy;
+    }
+    const ay = ANCHOR_Y - sy;
 
     for (const b of bodies) {
       // Lace length: exactly long enough for the badge to hang at the
-      // vertical center of the screen. Recomputed on resize.
+      // vertical center of the landing. Recomputed on resize.
       const maxD = Math.max(160, H / 2);
       const ax = Math.min(anchorX, W - b.w / 2 - 8);
 
@@ -92,7 +176,7 @@ function createLanyardSystem() {
       // Bungee lace: elastic past its length, so a dropped badge gets caught
       // and bounces back instead of snapping dead.
       const dx = b.x - ax;
-      const dy = b.y - ANCHOR_Y;
+      const dy = b.y - ay;
       const d = Math.hypot(dx, dy) || 1;
       const nx = dx / d;
       const ny = dy / d;
@@ -118,13 +202,13 @@ function createLanyardSystem() {
       // Hard lace cap — if something moves faster than the lace can absorb,
       // clamp it and rebound (the classic drop-it-and-it-bounces).
       let cx2 = b.x - ax;
-      let cy2 = b.y - ANCHOR_Y;
+      let cy2 = b.y - ay;
       const cd = Math.hypot(cx2, cy2) || 1;
       if (cd > maxD * HARD_STRETCH) {
         const cnx = cx2 / cd;
         const cny = cy2 / cd;
         b.x = ax + cnx * maxD * HARD_STRETCH;
-        b.y = ANCHOR_Y + cny * maxD * HARD_STRETCH;
+        b.y = ay + cny * maxD * HARD_STRETCH;
         const vn = b.vx * cnx + b.vy * cny;
         if (vn > BOUNCE_VN && !b.dragging) {
           // Impact too hard for the spring: bounce it back.
@@ -141,7 +225,7 @@ function createLanyardSystem() {
       const cAng = Math.max(-MAX_ANGLE, Math.min(MAX_ANGLE, ang));
       if (cAng !== ang) {
         b.x = ax + Math.sin(cAng) * cd;
-        b.y = ANCHOR_Y + Math.cos(cAng) * cd;
+        b.y = ay + Math.cos(cAng) * cd;
         // Cancel the tangential velocity that pushed it past the cone.
         const tnx = Math.cos(cAng);
         const tny = -Math.sin(cAng);
@@ -174,7 +258,12 @@ function createLanyardSystem() {
         if (b.vy > 0) b.vy = 0;
       }
 
-      render(b, ax);
+      // Twist: smooth the badge's lateral speed into a ribbon-twist angle.
+      b.vxS += (b.vx - b.vxS) * 0.15;
+      const twistTarget = Math.max(-58, Math.min(58, b.vxS * 4.5));
+      b.twist += (twistTarget - b.twist) * 0.12;
+
+      render(b, ax, ay, time);
     }
 
     rafId = requestAnimationFrame(step);
@@ -225,26 +314,41 @@ function createLanyardSystem() {
   rafId = requestAnimationFrame(step);
 
   return {
-    add(el: HTMLElement, rope: HTMLElement, x: number) {
-      anchorX = x;
+    add(el: HTMLElement, rope: HTMLElement, aEl: HTMLElement | null) {
+      anchorEl = aEl;
+      updateAnchor();
       const w = el.offsetWidth;
       const h = el.offsetHeight;
       const H = window.innerHeight;
       const W = window.innerWidth;
-      // Long enough that the badge hangs at the vertical center of the screen.
+      // Long enough that the badge hangs at the vertical center of the landing.
       const maxD = Math.max(160, H / 2);
       const ax = Math.min(anchorX, W - w / 2 - 8);
+      const ay = ANCHOR_Y - window.scrollY;
+      lastSy = window.scrollY;
       // Entry: the badge starts up near the top edge (just below the navbar)
       // and falls in — the lace feeds out as it drops, then catches it with
       // a bounce.
       const phi = -0.1;
       const d0 = Math.min(h / 2 + 68, maxD * 0.55);
       const startX = ax + Math.sin(phi) * d0;
-      const startY = ANCHOR_Y + Math.cos(phi) * d0;
+      const startY = ay + Math.cos(phi) * d0;
+
+      const segs = Array.from(rope.querySelectorAll<HTMLElement>(".lace-seg"));
+      const shades = segs.map(
+        (s) => s.querySelector<HTMLElement>(".lace-shade") as HTMLElement
+      );
+      const clasp = rope.querySelector<HTMLElement>(
+        ".lace-clasp"
+      ) as HTMLElement;
+      const laceLen = Math.max(80, maxD - h / 2); // taut at rest
 
       const body: Body = {
         el,
         rope,
+        segs,
+        shades,
+        clasp,
         x: startX,
         y: startY,
         vx: 0,
@@ -254,6 +358,11 @@ function createLanyardSystem() {
         dragging: false,
         targetX: startX,
         targetY: startY,
+        vxS: 0,
+        twist: 0,
+        laceLen,
+        segW: segs[0] ? segs[0].offsetWidth : 36,
+        segH: laceLen / Math.max(1, segs.length) + 2,
       };
 
       el.style.position = "fixed";
@@ -271,7 +380,7 @@ function createLanyardSystem() {
       bodies.push(body);
 
       // Paint the first frame immediately (no flash at the DOM position).
-      render(body, ax);
+      render(body, ax, ay, performance.now());
     },
     destroy() {
       cancelAnimationFrame(rafId);
@@ -316,10 +425,13 @@ export default function HomeShell({
     const el = badgeRef.current;
     const rope = ropeRef.current;
     if (!el || !rope) return;
-    // The lace hangs from the top center of the viewport; the badge is
-    // suspended at the exact center of the screen.
+    // The lace hangs from directly below the Involvement nav link; the badge
+    // rests at the vertical center of the landing and scrolls away with it.
+    const involvement = document.querySelector<HTMLElement>(
+      'header a[href="/involvement"]'
+    );
     const sys = createLanyardSystem();
-    sys.add(el, rope, window.innerWidth / 2);
+    sys.add(el, rope, involvement);
     return () => sys.destroy();
   }, [introDone]);
 
@@ -385,32 +497,31 @@ export default function HomeShell({
             </div>
           </div>
 
-          {/* ID lace — thick string anchored at the top edge of the screen,
-              running down to the badge (length/tilt updated every frame) */}
+          {/* ID lace — a woven strap that BENDS (bezier sag + lag) and
+              TWISTS (rotateY ripple along its length); the physics
+              transforms every segment every frame */}
           <div
             ref={ropeRef}
-            className="hero-anim hero-fade hero-d1 pointer-events-none fixed left-0 top-0 z-[15] w-9 origin-top bg-[linear-gradient(90deg,#0d0d12_0%,#23232f_45%,#17171f_68%,#0a0a0f_100%)] shadow-[0_0_0_1px_rgba(255,255,255,0.08)] sm:w-10"
-            style={{ height: "320px", willChange: "transform" }}
+            className="hero-anim hero-fade hero-d1 pointer-events-none fixed left-0 top-0 z-[15]"
+            style={{ width: 0, height: 0 }}
           >
-            {/* "ID CARD" printed repeatedly down the woven strap */}
-            <div className="flex h-full flex-col items-center justify-around py-3">
-              {[0, 1, 2, 3, 4].map((i) => (
-                <span
-                  key={i}
-                  className="shrink-0 select-none whitespace-nowrap font-mono text-[7px] font-bold tracking-[0.08em] text-white/55"
-                >
-                  ID CARD
-                </span>
-              ))}
-            </div>
-
             {/* Snap-hook clasp at the bottom end, clipping into the slot */}
-            <span className="absolute -bottom-3 left-1/2 flex -translate-x-1/2 flex-col items-center">
+            <span className="lace-clasp flex flex-col items-center">
               <span className="h-2.5 w-2.5 rounded-full border-2 border-white/35 bg-black/70" />
               <span className="-mt-1 h-7 w-4 rounded-[4px] border border-white/25 bg-[#0e0e13]">
                 <span className="mx-auto mt-2 h-4 w-px bg-white/30" />
               </span>
             </span>
+
+            {/* Strap segments laid along the bend curve */}
+            {Array.from({ length: LACE_SEGS }, (_, i) => (
+              <div key={i} className="lace-seg">
+                {i % 2 === 1 && (
+                  <span className="lace-seg-text font-mono">ID CARD</span>
+                )}
+                <span className="lace-shade" />
+              </div>
+            ))}
           </div>
 
           {/* Draggable ID badge — hangs from the lace, sways like a pendulum,

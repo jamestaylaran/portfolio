@@ -388,3 +388,58 @@ body:has(.intro-overlay) .site-header {
 .home-ready .hero-d4 { animation-delay: 0.65s; }
 .home-ready .hero-d5 { animation-delay: 0.85s; }
 .home-ready .hero-d6 { animation-delay: 1.05s; }
+
+/* ============================================================
+   3D ID lace — segments are positioned/rotated every frame by
+   HomeShell's physics: they follow a bend curve and twist with
+   rotateY along their length (transform/opacity only).
+   ============================================================ */
+.lace-seg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 36px;
+  transform-origin: 50% 0;
+  overflow: hidden;
+  will-change: transform;
+  background: linear-gradient(
+    90deg,
+    #0d0d12 0%,
+    #23232f 45%,
+    #17171f 68%,
+    #0a0a0f 100%
+  );
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+@media (min-width: 640px) {
+  .lace-seg {
+    width: 40px;
+  }
+}
+.lace-seg-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  user-select: none;
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.55);
+}
+.lace-shade {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+}
+.lace-clasp {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 50% 100%;
+  will-change: transform;
+}
