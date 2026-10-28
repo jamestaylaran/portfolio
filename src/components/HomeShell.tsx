@@ -71,9 +71,18 @@ function createLanyardSystem() {
     } else {
       anchorX = window.innerWidth / 2;
     }
+    // Keep the strap in sync with the landing on resize: segment width
+    // (breakpoints change it), the badge's own box (photo grows at sm/lg),
+    // and each segment's height (the scaleY reference).
+    const maxD = Math.max(160, window.innerHeight / 2);
     for (const b of bodies) {
       const s0 = b.segs[0];
       if (s0) b.segW = s0.offsetWidth;
+      b.w = b.el.offsetWidth;
+      b.h = b.el.offsetHeight;
+      b.laceLen = Math.max(80, maxD - b.h / 2);
+      b.segH = b.laceLen / Math.max(1, b.segs.length) + 2;
+      for (const s of b.segs) s.style.height = `${b.segH}px`;
     }
   };
   window.addEventListener("resize", updateAnchor);
@@ -412,6 +421,13 @@ function createLanyardSystem() {
         flipEl: el.querySelector<HTMLElement>(".badge-flipper"),
       };
 
+      // The segments are absolutely positioned with only absolute children,
+      // so their CSS height is 0 — scaleY would keep them at 0 and the strap
+      // would render as faint outlined lines with gaps. Giving each its
+      // natural height makes scaleY stretch it to exactly span the curve
+      // (with a 1.5px overlap) every frame.
+      for (const s of segs) s.style.height = `${body.segH}px`;
+
       el.style.position = "fixed";
       el.style.left = "0";
       el.style.top = "0";
@@ -575,7 +591,7 @@ export default function HomeShell({
               and flips over on tap: photo on the front, short info on the
               back. The fade lives on the wrapper so the inner 3D flip
               never gets flattened during the fade-in. */}
-          <div className="hero-anim hero-fade hero-d1 absolute right-6 top-[16%] z-[30] w-52 sm:right-12 sm:w-60 lg:right-16 lg:w-64">
+          <div className="badge-shell hero-anim hero-fade hero-d1 absolute right-6 top-[16%] z-[30] w-52 sm:right-12 sm:w-60 lg:right-16 lg:w-64">
             <div
               ref={badgeRef}
               className="relative w-52 sm:w-60 lg:w-64"

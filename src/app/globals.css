@@ -370,6 +370,14 @@ body:has(.intro-overlay) .site-header {
   opacity: 0;
   will-change: transform, opacity;
 }
+/* The badge wrapper hosts the position:fixed physics badge. On any other
+   element .hero-anim's will-change: transform is just a perf hint, but here
+   it would make THIS wrapper the badge's containing block, re-anchoring the
+   badge to the wrapper (instead of the viewport) and detaching it from the
+   lace — so the hint is explicitly switched back off. */
+.hero-anim.badge-shell {
+  will-change: auto;
+}
 .home-ready .hero-left {
   animation: slideInFromLeft 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
