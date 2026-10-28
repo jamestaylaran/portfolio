@@ -31,6 +31,14 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Never allow a horizontal scrollbar (lanyard swing, decorative bleeds).
+   `clip` instead of `hidden`: it does NOT create a scroll container, so
+   the sticky header keeps working. Propagates to the viewport. */
+html,
+body {
+  overflow-x: clip;
+}
+
 /* Subtle radial glow behind hero sections */
 .glow {
   position: relative;
@@ -38,7 +46,10 @@ body {
 .glow::before {
   content: "";
   position: absolute;
-  inset: -40% -10% auto;
+  /* No horizontal bleed (-10% here used to push the page 10% wider and
+     create a side scrollbar). The gradient is centered and transparent at
+     its edges, so cropping to the container is visually identical. */
+  inset: -40% 0 auto;
   height: 420px;
   background: radial-gradient(
     600px 240px at 50% 0,
