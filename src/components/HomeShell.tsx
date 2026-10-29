@@ -7,15 +7,17 @@ import ScrollReveal from "@/components/ScrollReveal";
 import type { Profile, Achievement, Role, Activity } from "@/lib/types";
 
 // --- Lanyard physics -------------------------------------------------------
-// The ID badge hangs from a lace anchored at the top of the viewport, like a
-// real lanyard: it swings inside a sane cone, can be grabbed and thrown, and
-// is rope-constrained so it can NEVER reach the ground or flip sideways.
+// The card hangs from a thin strap anchored just below the navbar on the
+// top-right of the landing (like the reference portfolio): it swings inside
+// a sane cone, can be grabbed and thrown, and is rope-constrained so it
+// can NEVER reach the ground or flip sideways.
 type Body = {
   el: HTMLElement;
   rope: HTMLElement;
-  segs: HTMLElement[]; // woven strap segments (3D bend + twist)
+  segs: HTMLElement[]; // strap segments (3D bend + twist)
   shades: HTMLElement[]; // per-segment darkening as it turns edge-on
   clasp: HTMLElement; // snap-hook at the strap's end
+  anchorClip: HTMLElement | null; // black buckle at the strap's top
   x: number; // center X (viewport px)
   y: number; // center Y (viewport px)
   vx: number;
@@ -28,7 +30,7 @@ type Body = {
   vxS: number; // smoothed lateral speed — drives the ribbon twist
   twist: number; // smoothed twist in degrees (grows toward the badge)
   laceLen: number; // design length: taut when the badge hangs at rest
-  segW: number; // segment width (36/40) — for centering on the curve
+  segW: number; // segment width (9) — for centering on the curve
   segH: number; // segment base height — scaleY reference
   flip: number; // current card-flip angle (0 = photo, 180 = info)
   flipV: number; // flip angular velocity
@@ -37,8 +39,11 @@ type Body = {
 };
 
 const GROUND_GAP = 120; // minimum clearance between badge and the floor
-const ANCHOR_Y = 0; // lace is anchored at the very top edge of the viewport
+const ANCHOR_Y = 86; // just below the sticky navbar — the buckle's height
+const ANCHOR_OFFSET = 130; // px from the right edge — top-right hang spot
+const OVERHANG = 14; // the card may lean slightly past the screen edge
 const LACE_SEGS = 14; // strap segments along the bend curve
+const CARD_LEAN = 8; // baked-in tilt (deg), like a casually hung badge
 const MAX_ANGLE = 0.62; // ~35° max swing from vertical — stays upright
 const MAX_SPEED = 14; // px/frame cap so throws stay graceful, never violent
 const ROPE_K = 0.2; // lace spring stiffness — bungee catch that bounces
@@ -47,6 +52,10 @@ const HARD_STRETCH = 1.12; // lace never stretches past 12% of its length
 const RESTITUTION = 0.5; // energy kept when a hard impact rebounds
 const BOUNCE_VN = 3; // min outward speed that triggers a rebound
 
+// Short strap, like the reference: the card hangs high, close under the
+// buckle, and grows its strap only slightly with card size.
+const restLaceLen = (h: number) => Math.max(44, h * 0.17 + 22);
+
 function createLanyardSystem() {
   const bodies: Body[] = [];
   const GRAVITY = 0.5;
@@ -54,33 +63,25 @@ function createLanyardSystem() {
   let rafId = 0;
   let grabbed: Body | null = null;
   let anchorX = 0;
-  let anchorEl: HTMLElement | null = null;
   let lastSy = 0; // last seen window.scrollY — the lanyard rides the landing
   let downX = 0; // pointer where the grab started — tells tap from drag
   let downY = 0;
   let downT = 0;
   let tapMoved = false;
 
-  // The lace hangs from directly below the Involvement nav link (re-measured
-  // on resize). Its ANCHOR Y follows window scroll, so the whole lanyard
+  // The strap is clipped under the navbar's right side (re-measured on
+  // resize). Its ANCHOR Y follows window scroll, so the whole lanyard
   // stays on the landing and scrolls away with the hero.
   const updateAnchor = () => {
-    if (anchorEl) {
-      const r = anchorEl.getBoundingClientRect();
-      anchorX = r.left + r.width / 2;
-    } else {
-      anchorX = window.innerWidth / 2;
-    }
-    // Keep the strap in sync with the landing on resize: segment width
-    // (breakpoints change it), the badge's own box (photo grows at sm/lg),
-    // and each segment's height (the scaleY reference).
-    const maxD = Math.max(160, window.innerHeight / 2);
+    anchorX = window.innerWidth - ANCHOR_OFFSET;
+    // Keep the strap in sync with the landing on resize: segment width,
+    // the card's own box, the strap length, and each segment's height.
     for (const b of bodies) {
       const s0 = b.segs[0];
       if (s0) b.segW = s0.offsetWidth;
       b.w = b.el.offsetWidth;
       b.h = b.el.offsetHeight;
-      b.laceLen = Math.max(80, maxD - b.h / 2);
+      b.laceLen = restLaceLen(b.h);
       b.segH = b.laceLen / Math.max(1, b.segs.length) + 2;
       for (const s of b.segs) s.style.height = `${b.segH}px`;
     }
@@ -116,21 +117,28 @@ function createLanyardSystem() {
     const slotX = b.x + (b.h / 2) * Math.sin(th);
     const slotY = b.y - (b.h / 2) * Math.cos(th);
     b.el.style.transform = `translate3d(${slotX - b.w / 2}px, ${slotY}px, 0) rotate(${thDeg}deg)`;
-    // The flip spins on its own inner axis (card-center perspective) so the
-    // pendulum tilt and the flip never fight each other.
+    // The flip spins on its own inner axis so the pendulum tilt and the
+    // flip never fight each other. A small baked-in lean (CARD_LEAN) makes
+    // it hang tilted like the reference's polaroid, and the pivot sits at
+    // the card's top — right where the clip is.
     if (b.flipEl) {
-      b.flipEl.style.transform = `perspective(800px) rotateY(${b.flip}deg)`;
+      b.flipEl.style.transform = `rotate(${CARD_LEAN}deg) perspective(900px) rotateY(${b.flip}deg)`;
+    }
+    // The buckle stays glued to the anchor point, above the strap's start.
+    if (b.anchorClip) {
+      b.anchorClip.style.transform = `translate3d(${ax}px, ${ay}px, 0) translate(-50%, -100%)`;
     }
 
     // --- 3D lace ---------------------------------------------------------
     // BEND: the strap follows a quadratic bezier from the anchor to the
-    // slot. Its control point sags under gravity (deeper when the badge is
-    // lifted and the lace has slack) and lags opposite the badge's motion,
+    // slot. Its control point sags under gravity (deeper when the card is
+    // lifted and the strap has slack) and lags opposite the card's motion,
     // so the strap bows like a real cord instead of a ruler-straight line.
+    // The strap is short, so the sag stays modest.
     const n = b.segs.length;
     const dist = Math.hypot(slotX - ax, slotY - ay) || 1;
     const slack = Math.max(0, b.laceLen - dist);
-    const sag = 8 + Math.min(46, slack * 0.5) + Math.max(0, b.vy) * 2;
+    const sag = 4 + Math.min(20, slack * 0.35) + Math.max(0, b.vy) * 1.2;
     const ccx = (ax + slotX) / 2 - b.vxS * 3;
     const ccy = (ay + slotY) / 2 + sag;
 
@@ -181,10 +189,10 @@ function createLanyardSystem() {
     const ay = ANCHOR_Y - sy;
 
     for (const b of bodies) {
-      // Lace length: exactly long enough for the badge to hang at the
-      // vertical center of the landing. Recomputed on resize.
-      const maxD = Math.max(160, H / 2);
-      const ax = Math.min(anchorX, W - b.w / 2 - 8);
+      // Lace length: short, so the card hangs high near the buckle.
+      // Recomputed on resize. The card may lean slightly past the edge.
+      const maxD = b.laceLen + b.h / 2;
+      const ax = Math.min(anchorX, W + OVERHANG - b.w / 2);
 
       // --- forces (computed from the current position) --------------------
       if (b.dragging) {
@@ -263,9 +271,10 @@ function createLanyardSystem() {
         b.vy = (b.vy / sp) * MAX_SPEED;
       }
 
-      // Walls
-      if (b.x + b.w / 2 > W) {
-        b.x = W - b.w / 2;
+      // Walls — the right wall sits slightly past the screen edge so the
+      // card can hang half cut-off, like the reference's polaroid.
+      if (b.x + b.w / 2 > W + OVERHANG) {
+        b.x = W + OVERHANG - b.w / 2;
         b.vx *= -0.4;
       }
       if (b.x - b.w / 2 < 0) {
@@ -366,23 +375,21 @@ function createLanyardSystem() {
   rafId = requestAnimationFrame(step);
 
   return {
-    add(el: HTMLElement, rope: HTMLElement, aEl: HTMLElement | null) {
-      anchorEl = aEl;
+    add(el: HTMLElement, rope: HTMLElement) {
       updateAnchor();
       const w = el.offsetWidth;
       const h = el.offsetHeight;
-      const H = window.innerHeight;
       const W = window.innerWidth;
-      // Long enough that the badge hangs at the vertical center of the landing.
-      const maxD = Math.max(160, H / 2);
-      const ax = Math.min(anchorX, W - w / 2 - 8);
+      // Short strap: the card hangs high, close under the buckle.
+      const laceLen = restLaceLen(h);
+      const maxD = laceLen + h / 2;
+      const ax = Math.min(anchorX, W + OVERHANG - w / 2);
       const ay = ANCHOR_Y - window.scrollY;
       lastSy = window.scrollY;
-      // Entry: the badge starts up near the top edge (just below the navbar)
-      // and falls in — the lace feeds out as it drops, then catches it with
-      // a bounce.
+      // Entry: the card starts up near the buckle and falls in — the strap
+      // feeds out as it drops, then catches it with a bounce.
       const phi = -0.1;
-      const d0 = Math.min(h / 2 + 68, maxD * 0.55);
+      const d0 = Math.min(h / 2 + 68, maxD * 0.6);
       const startX = ax + Math.sin(phi) * d0;
       const startY = ay + Math.cos(phi) * d0;
 
@@ -393,7 +400,7 @@ function createLanyardSystem() {
       const clasp = rope.querySelector<HTMLElement>(
         ".lace-clasp"
       ) as HTMLElement;
-      const laceLen = Math.max(80, maxD - h / 2); // taut at rest
+      const anchorClip = rope.querySelector<HTMLElement>(".lace-anchor");
 
       const body: Body = {
         el,
@@ -401,6 +408,7 @@ function createLanyardSystem() {
         segs,
         shades,
         clasp,
+        anchorClip,
         x: startX,
         y: startY,
         vx: 0,
@@ -413,7 +421,7 @@ function createLanyardSystem() {
         vxS: 0,
         twist: 0,
         laceLen,
-        segW: segs[0] ? segs[0].offsetWidth : 36,
+        segW: segs[0] ? segs[0].offsetWidth : 9,
         segH: laceLen / Math.max(1, segs.length) + 2,
         flip: 0,
         flipV: 0,
@@ -458,6 +466,7 @@ function createLanyardSystem() {
 }
 
 const INTRO_DURATION = 5000;
+const TYPE_TEXT = "fresh Graduate"; // typed out under the headline
 
 type HomeShellProps = {
   profile: Profile;
@@ -473,6 +482,7 @@ export default function HomeShell({
   activities,
 }: HomeShellProps) {
   const [introDone, setIntroDone] = useState(false);
+  const [typed, setTyped] = useState("");
   const badgeRef = useRef<HTMLDivElement>(null);
   const ropeRef = useRef<HTMLDivElement>(null);
 
@@ -481,6 +491,26 @@ export default function HomeShell({
     return () => clearTimeout(t);
   }, []);
 
+  // Typewriter line under the headline, like the reference's "Happy
+  // coding_": types out once the hero entrance starts, then the cursor
+  // keeps blinking forever.
+  useEffect(() => {
+    if (!introDone) return;
+    let iv = 0;
+    const start = window.setTimeout(() => {
+      let i = 0;
+      iv = window.setInterval(() => {
+        i += 1;
+        setTyped(TYPE_TEXT.slice(0, i));
+        if (i >= TYPE_TEXT.length) window.clearInterval(iv);
+      }, 70);
+    }, 750);
+    return () => {
+      window.clearTimeout(start);
+      window.clearInterval(iv);
+    };
+  }, [introDone]);
+
   // Lace physics only kicks in once the intro has handed off, so the badge
   // sways into view instead of moving while the screen is still covered.
   useEffect(() => {
@@ -488,13 +518,10 @@ export default function HomeShell({
     const el = badgeRef.current;
     const rope = ropeRef.current;
     if (!el || !rope) return;
-    // The lace hangs from directly below the Involvement nav link; the badge
-    // rests at the vertical center of the landing and scrolls away with it.
-    const involvement = document.querySelector<HTMLElement>(
-      'header a[href="/involvement"]'
-    );
+    // The strap is clipped under the navbar's right side; the card rests
+    // near the top-right of the landing and scrolls away with it.
     const sys = createLanyardSystem();
-    sys.add(el, rope, involvement);
+    sys.add(el, rope);
     return () => sys.destroy();
   }, [introDone]);
 
@@ -516,10 +543,23 @@ export default function HomeShell({
         {/* Grid background pattern */}
         <div className="fixed inset-0 z-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgdHlwZT0icmVwdGV0ZXkiPjxwYXRoIGQ9Ik0gNCAwIEwgMCA0IE0gNDAgNAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzI2MjYzMyIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2cpIi8+PC9zdmc+')] [background-size:40px_40px] opacity-40 pointer-events-none" />
 
-        {/* Full-bleed hero: content hard left, badge hanging on the right */}
+        {/* Full-bleed hero: content hard left, card hanging top-right */}
         <section className="relative flex min-h-[88vh] w-full items-center px-6 py-20 sm:px-10 lg:px-16">
+          {/* Soft ambient light orbs (static blurred blobs, like the
+              reference portfolio) */}
+          <div
+            className="pointer-events-none absolute inset-0 overflow-hidden"
+            aria-hidden="true"
+          >
+            <span className="hero-orb -top-24 right-16 h-72 w-72 bg-white/[0.04]" />
+            <span
+              className="hero-orb -bottom-32 -left-16 h-80 w-80"
+              style={{ background: "var(--accent-soft)" }}
+            />
+          </div>
+
           <div className="flex w-full max-w-[64rem] flex-col items-start gap-5">
-            <span className="hero-anim hero-left hero-d1 inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1 text-xs text-muted">
+            <span className="hero-anim hero-blur hero-d1 inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1 text-xs text-muted">
               <span
                 className="avatar-pill h-2 w-2 rounded-full"
                 style={{ background: profile.accent }}
@@ -527,70 +567,81 @@ export default function HomeShell({
               {profile.location}
             </span>
 
-            <h1 className="hero-anim hero-left hero-d2 text-5xl font-bold leading-[1.02] tracking-tight text-white sm:text-6xl lg:text-7xl xl:text-8xl">
-              Frontend
-              <br />
-              <span className="text-gray-500">Developer</span>
+            <h1 className="text-5xl font-bold leading-[1.02] tracking-tight text-white sm:text-6xl lg:text-7xl xl:text-8xl">
+              <span className="hero-anim hero-scale hero-d2 block">
+                Frontend
+              </span>
+              <span className="hero-anim hero-rotate hero-d3 block text-gray-500">
+                Developer
+              </span>
             </h1>
 
-            <p className="hero-anim hero-right hero-d3 text-sm uppercase tracking-[0.35em] text-muted">
-              fresh Graduat_
+            <p className="hero-anim hero-fade hero-d4 text-sm uppercase tracking-[0.35em] text-muted">
+              {typed}
+              <span className="type-cursor">_</span>
             </p>
 
-            <p className="hero-anim hero-up hero-d4 max-w-xl text-sm leading-relaxed text-muted">
+            <p className="hero-anim hero-up hero-d5 max-w-xl text-sm leading-relaxed text-muted">
               Menciptakan website modern dengan tampilan clean, responsif, dan
               elegan. Membangun ide dan desain menjadi pengalaman digital yang
               menarik dan mudah digunakan.
             </p>
 
-            <div className="hero-anim hero-up hero-d5 flex flex-wrap gap-3">
-              {["Typescript", "React.js", "Tailwind"].map((tech) => (
+            <div className="flex flex-wrap gap-3">
+              {["Typescript", "React.js", "Tailwind"].map((tech, i) => (
                 <span
                   key={tech}
-                  className="rounded-full border border-border bg-surface px-3 py-1 text-xs text-muted"
+                  className="hero-anim hero-pop rounded-full border border-border bg-surface px-3 py-1 text-xs text-muted"
+                  style={{ animationDelay: `${1.05 + i * 0.12}s` }}
                 >
                   {tech}
                 </span>
               ))}
             </div>
 
-            <div className="hero-anim hero-up hero-d6 text-[10px] uppercase tracking-[0.25em] text-muted">
+            <div className="hero-anim hero-up hero-d7 text-[10px] uppercase tracking-[0.25em] text-muted">
               ↓ explore my work below
               <br />↖ open to full-time &amp; freelance opportunities
             </div>
           </div>
 
-          {/* ID lace — a woven strap that BENDS (bezier sag + lag) and
-              TWISTS (rotateY ripple along its length); the physics
+          {/* "SCROLL ↓" indicator at the hero's bottom center, like the
+              reference portfolio */}
+          <div className="hero-anim hero-fade hero-d7 pointer-events-none absolute bottom-5 left-1/2 hidden -translate-x-1/2 items-center gap-2 text-[10px] uppercase tracking-[0.3em] text-muted sm:flex">
+            <span>scroll</span>
+            <span className="scroll-arrow">↓</span>
+          </div>
+
+          {/* ID strap — a thin flat strap that BENDS (bezier sag + lag)
+              and TWISTS (rotateY ripple along its length); the physics
               transforms every segment every frame */}
           <div
             ref={ropeRef}
             className="hero-anim hero-fade hero-d1 pointer-events-none fixed left-0 top-0 z-[15]"
             style={{ width: 0, height: 0 }}
           >
-            {/* Snap-hook clasp at the bottom end, clipping into the slot */}
+            {/* Black buckle clipped under the navbar — the strap threads
+                through it */}
+            <span className="lace-anchor" />
+
+            {/* Metal snap-hook at the strap's end, clipping into the slot */}
             <span className="lace-clasp flex flex-col items-center">
-              <span className="h-2.5 w-2.5 rounded-full border-2 border-white/35 bg-black/70" />
-              <span className="-mt-1 h-7 w-4 rounded-[4px] border border-white/25 bg-[#0e0e13]">
-                <span className="mx-auto mt-2 h-4 w-px bg-white/30" />
-              </span>
+              <span className="lace-clasp-ring" />
+              <span className="lace-clasp-hook" />
             </span>
 
             {/* Strap segments laid along the bend curve */}
             {Array.from({ length: LACE_SEGS }, (_, i) => (
               <div key={i} className="lace-seg">
-                {i % 2 === 1 && (
-                  <span className="lace-seg-text font-mono">ID CARD</span>
-                )}
                 <span className="lace-shade" />
               </div>
             ))}
           </div>
 
-          {/* Draggable ID badge — hangs from the lace, sways like a pendulum,
-              and flips over on tap: photo on the front, short info on the
-              back. The fade lives on the wrapper so the inner 3D flip
-              never gets flattened during the fade-in. */}
+          {/* Draggable photo card — hangs from the strap, sways like a
+              pendulum, and flips over on tap: polaroid photo on the front,
+              short info on the back. The fade lives on the wrapper so the
+              inner 3D flip never gets flattened during the fade-in. */}
           <div className="badge-shell hero-anim hero-fade hero-d1 absolute right-6 top-[16%] z-[30] w-52 sm:right-12 sm:w-60 lg:right-16 lg:w-64">
             <div
               ref={badgeRef}
@@ -598,66 +649,65 @@ export default function HomeShell({
               style={{ transformStyle: "preserve-3d" }}
             >
               <div className="badge-flipper">
-                {/* FRONT — photo */}
-                <div className="badge-face rounded-xl border border-white/10 bg-black/50 p-3 shadow-2xl backdrop-blur-sm">
-                  {/* Slot hole where the clip meets the card */}
-                  <div className="mx-auto mb-2 h-2 w-10 rounded-full bg-white/15 ring-1 ring-white/10" />
+                {/* FRONT — polaroid photo card */}
+                <div className="badge-face rounded-[14px] bg-[#f3f3f6] p-2.5 pb-9 shadow-[0_22px_50px_-14px_rgba(0,0,0,0.65)]">
+                  {/* Slot hole punched through the white frame */}
+                  <div className="mx-auto mb-2 h-1.5 w-9 rounded-full bg-black/15" />
 
-                  <div className="relative overflow-hidden rounded-lg border border-white/15">
+                  <div className="relative overflow-hidden rounded-[6px]">
                     <img
                       src="/id-photo.jpg"
                       alt="Profile ID"
-                      className="h-48 w-full object-cover object-top sm:h-56 lg:h-64"
+                      className="h-48 w-full object-cover object-top grayscale sm:h-56 lg:h-64"
                       draggable={false}
                     />
                     <span
-                      className="absolute right-2 top-1.5 text-xs text-white/70 [text-shadow:0_1px_3px_rgba(0,0,0,0.9)]"
+                      className="absolute right-2 top-1.5 text-xs text-white/80 [text-shadow:0_1px_3px_rgba(0,0,0,0.9)]"
                       title="Tap to flip"
                     >
                       ↻
                     </span>
                   </div>
-                  <div className="mt-2 flex items-center justify-between text-[10px] uppercase tracking-[0.18em] text-white/60">
-                    <span>ID CARD</span>
-                    <span className="text-white/40">✦ grab me</span>
-                  </div>
+                  <p className="mt-2 text-center text-[9px] uppercase tracking-[0.22em] text-black/45">
+                    ✦ grab me ✦
+                  </p>
                 </div>
 
-                {/* BACK — short info */}
+                {/* BACK — short info, like a note on the back of the photo */}
                 <div
-                  className="badge-face absolute inset-0 flex flex-col rounded-xl border border-white/10 bg-black/50 p-3 shadow-2xl backdrop-blur-sm"
+                  className="badge-face absolute inset-0 flex flex-col rounded-[14px] bg-[#f3f3f6] p-2.5 pb-9 shadow-[0_22px_50px_-14px_rgba(0,0,0,0.65)]"
                   style={{ transform: "rotateY(180deg)" }}
                 >
-                  <div className="mx-auto mb-2 h-2 w-10 rounded-full bg-white/15 ring-1 ring-white/10" />
+                  <div className="mx-auto mb-2 h-1.5 w-9 rounded-full bg-black/15" />
 
-                  <div className="flex flex-1 flex-col justify-center gap-3">
+                  <div className="flex flex-1 flex-col justify-center gap-3 px-1.5">
                     <div>
-                      <p className="text-[9px] uppercase tracking-[0.22em] text-white/45">
+                      <p className="text-[9px] uppercase tracking-[0.22em] text-black/40">
                         Nickname
                       </p>
-                      <p className="text-xl font-bold tracking-wide text-white">
+                      <p className="text-xl font-bold tracking-wide text-[#17171d]">
                         RYOTA
                       </p>
                     </div>
                     <div>
-                      <p className="text-[9px] uppercase tracking-[0.22em] text-white/45">
+                      <p className="text-[9px] uppercase tracking-[0.22em] text-black/40">
                         Age
                       </p>
-                      <p className="text-xl font-bold text-white">22</p>
+                      <p className="text-xl font-bold text-[#17171d]">22</p>
                     </div>
                     <div>
-                      <p className="text-[9px] uppercase tracking-[0.22em] text-white/45">
+                      <p className="text-[9px] uppercase tracking-[0.22em] text-black/40">
                         Motto
                       </p>
-                      <p className="text-[13px] italic leading-snug text-white/85">
+                      <p className="text-[13px] italic leading-snug text-black/60">
                         “Turning ideas into interfaces — one pixel at a time.”
                       </p>
                     </div>
                   </div>
 
-                  <div className="mt-2 flex items-center justify-between text-[10px] uppercase tracking-[0.18em] text-white/60">
+                  <div className="mt-2 flex items-center justify-between px-1 text-[9px] uppercase tracking-[0.18em] text-black/45">
                     <span>ID CARD</span>
-                    <span className="text-white/40">↻ tap to flip</span>
+                    <span>↻ tap to flip</span>
                   </div>
                 </div>
               </div>
@@ -691,9 +741,9 @@ export default function HomeShell({
                 </h2>
                 <Link
                   href="/achievements"
-                  className="text-sm text-muted hover:text-foreground"
+                  className="hover-slide px-3 py-1 text-sm text-muted hover:text-foreground"
                 >
-                  View all →
+                  <span>View all →</span>
                 </Link>
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
