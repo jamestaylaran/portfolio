@@ -7,10 +7,9 @@ import ScrollReveal from "@/components/ScrollReveal";
 import type { Profile, Achievement, Role, Activity } from "@/lib/types";
 
 // --- Lanyard physics -------------------------------------------------------
-// The card hangs from a thin strap anchored just below the navbar on the
-// top-right of the landing (like the reference portfolio): it swings inside
-// a sane cone, can be grabbed and thrown, and is rope-constrained so it
-// can NEVER reach the ground or flip sideways.
+// The card hangs from a thin strap clipped just below the "Involvement"
+// nav link: it swings inside a sane cone, can be grabbed and thrown, and
+// is rope-constrained so it can NEVER reach the ground or flip sideways.
 type Body = {
   el: HTMLElement;
   rope: HTMLElement;
@@ -39,9 +38,7 @@ type Body = {
 };
 
 const GROUND_GAP = 120; // minimum clearance between badge and the floor
-const ANCHOR_Y = 86; // just below the sticky navbar — the buckle's height
-const ANCHOR_OFFSET = 130; // px from the right edge — top-right hang spot
-const OVERHANG = 14; // the card may lean slightly past the screen edge
+const ANCHOR_Y = 100; // just below the sticky navbar — the buckle's height
 const LACE_SEGS = 14; // strap segments along the bend curve
 const CARD_LEAN = 8; // baked-in tilt (deg), like a casually hung badge
 const MAX_ANGLE = 0.62; // ~35° max swing from vertical — stays upright
@@ -52,9 +49,9 @@ const HARD_STRETCH = 1.12; // lace never stretches past 12% of its length
 const RESTITUTION = 0.5; // energy kept when a hard impact rebounds
 const BOUNCE_VN = 3; // min outward speed that triggers a rebound
 
-// Short strap, like the reference: the card hangs high, close under the
-// buckle, and grows its strap only slightly with card size.
-const restLaceLen = (h: number) => Math.max(44, h * 0.17 + 22);
+// Taut lace length: long enough for the badge to hang at the vertical
+// center of the landing (measured from the clip down to that rest spot).
+const restMaxD = (H: number) => Math.max(180, H / 2 - ANCHOR_Y);
 
 function createLanyardSystem() {
   const bodies: Body[] = [];
@@ -63,25 +60,29 @@ function createLanyardSystem() {
   let rafId = 0;
   let grabbed: Body | null = null;
   let anchorX = 0;
+  let anchorEl: HTMLElement | null = null;
   let lastSy = 0; // last seen window.scrollY — the lanyard rides the landing
   let downX = 0; // pointer where the grab started — tells tap from drag
   let downY = 0;
   let downT = 0;
   let tapMoved = false;
 
-  // The strap is clipped under the navbar's right side (re-measured on
-  // resize). Its ANCHOR Y follows window scroll, so the whole lanyard
+  // The lace hangs from directly below the Involvement nav link (re-measured
+  // on resize). Its ANCHOR Y follows window scroll, so the whole lanyard
   // stays on the landing and scrolls away with the hero.
   const updateAnchor = () => {
-    anchorX = window.innerWidth - ANCHOR_OFFSET;
+    const r = anchorEl?.getBoundingClientRect();
+    anchorX =
+      r && r.width > 0 ? r.left + r.width / 2 : window.innerWidth / 2;
     // Keep the strap in sync with the landing on resize: segment width,
     // the card's own box, the strap length, and each segment's height.
+    const maxD = restMaxD(window.innerHeight);
     for (const b of bodies) {
       const s0 = b.segs[0];
       if (s0) b.segW = s0.offsetWidth;
       b.w = b.el.offsetWidth;
       b.h = b.el.offsetHeight;
-      b.laceLen = restLaceLen(b.h);
+      b.laceLen = Math.max(60, maxD - b.h / 2);
       b.segH = b.laceLen / Math.max(1, b.segs.length) + 2;
       for (const s of b.segs) s.style.height = `${b.segH}px`;
     }
@@ -138,7 +139,7 @@ function createLanyardSystem() {
     const n = b.segs.length;
     const dist = Math.hypot(slotX - ax, slotY - ay) || 1;
     const slack = Math.max(0, b.laceLen - dist);
-    const sag = 4 + Math.min(20, slack * 0.35) + Math.max(0, b.vy) * 1.2;
+    const sag = 6 + Math.min(34, slack * 0.45) + Math.max(0, b.vy) * 1.6;
     const ccx = (ax + slotX) / 2 - b.vxS * 3;
     const ccy = (ay + slotY) / 2 + sag;
 
@@ -189,10 +190,10 @@ function createLanyardSystem() {
     const ay = ANCHOR_Y - sy;
 
     for (const b of bodies) {
-      // Lace length: short, so the card hangs high near the buckle.
-      // Recomputed on resize. The card may lean slightly past the edge.
-      const maxD = b.laceLen + b.h / 2;
-      const ax = Math.min(anchorX, W + OVERHANG - b.w / 2);
+      // Lace length: exactly long enough for the badge to hang at the
+      // vertical center of the landing. Recomputed on resize.
+      const maxD = restMaxD(H);
+      const ax = Math.min(anchorX, W - b.w / 2 - 8);
 
       // --- forces (computed from the current position) --------------------
       if (b.dragging) {
@@ -271,10 +272,9 @@ function createLanyardSystem() {
         b.vy = (b.vy / sp) * MAX_SPEED;
       }
 
-      // Walls — the right wall sits slightly past the screen edge so the
-      // card can hang half cut-off, like the reference's polaroid.
-      if (b.x + b.w / 2 > W + OVERHANG) {
-        b.x = W + OVERHANG - b.w / 2;
+      // Walls
+      if (b.x + b.w / 2 > W) {
+        b.x = W - b.w / 2;
         b.vx *= -0.4;
       }
       if (b.x - b.w / 2 < 0) {
@@ -375,21 +375,23 @@ function createLanyardSystem() {
   rafId = requestAnimationFrame(step);
 
   return {
-    add(el: HTMLElement, rope: HTMLElement) {
+    add(el: HTMLElement, rope: HTMLElement, aEl: HTMLElement | null) {
+      anchorEl = aEl;
       updateAnchor();
       const w = el.offsetWidth;
       const h = el.offsetHeight;
+      const H = window.innerHeight;
       const W = window.innerWidth;
-      // Short strap: the card hangs high, close under the buckle.
-      const laceLen = restLaceLen(h);
-      const maxD = laceLen + h / 2;
-      const ax = Math.min(anchorX, W + OVERHANG - w / 2);
+      // Long enough that the badge hangs at the vertical center of the landing.
+      const maxD = restMaxD(H);
+      const laceLen = Math.max(60, maxD - h / 2);
+      const ax = Math.min(anchorX, W - w / 2 - 8);
       const ay = ANCHOR_Y - window.scrollY;
       lastSy = window.scrollY;
-      // Entry: the card starts up near the buckle and falls in — the strap
+      // Entry: the badge starts up near the clip and falls in — the strap
       // feeds out as it drops, then catches it with a bounce.
       const phi = -0.1;
-      const d0 = Math.min(h / 2 + 68, maxD * 0.6);
+      const d0 = Math.min(h / 2 + 68, maxD * 0.55);
       const startX = ax + Math.sin(phi) * d0;
       const startY = ay + Math.cos(phi) * d0;
 
@@ -518,10 +520,13 @@ export default function HomeShell({
     const el = badgeRef.current;
     const rope = ropeRef.current;
     if (!el || !rope) return;
-    // The strap is clipped under the navbar's right side; the card rests
-    // near the top-right of the landing and scrolls away with it.
+    // The lace hangs from directly below the Involvement nav link; the badge
+    // rests at the vertical center of the landing and scrolls away with it.
+    const involvement = document.querySelector<HTMLElement>(
+      'header a[href="/involvement"]'
+    );
     const sys = createLanyardSystem();
-    sys.add(el, rope);
+    sys.add(el, rope, involvement);
     return () => sys.destroy();
   }, [introDone]);
 
@@ -543,7 +548,7 @@ export default function HomeShell({
         {/* Grid background pattern */}
         <div className="fixed inset-0 z-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgdHlwZT0icmVwdGV0ZXkiPjxwYXRoIGQ9Ik0gNCAwIEwgMCA0IE0gNDAgNAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzI2MjYzMyIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2cpIi8+PC9zdmc+')] [background-size:40px_40px] opacity-40 pointer-events-none" />
 
-        {/* Full-bleed hero: content hard left, card hanging top-right */}
+        {/* Full-bleed hero: content hard left, badge hanging on the right */}
         <section className="relative flex min-h-[88vh] w-full items-center px-6 py-20 sm:px-10 lg:px-16">
           {/* Soft ambient light orbs (static blurred blobs, like the
               reference portfolio) */}
@@ -649,16 +654,16 @@ export default function HomeShell({
               style={{ transformStyle: "preserve-3d" }}
             >
               <div className="badge-flipper">
-                {/* FRONT — polaroid photo card */}
-                <div className="badge-face rounded-[14px] bg-[#f3f3f6] p-2.5 pb-9 shadow-[0_22px_50px_-14px_rgba(0,0,0,0.65)]">
-                  {/* Slot hole punched through the white frame */}
-                  <div className="mx-auto mb-2 h-1.5 w-9 rounded-full bg-black/15" />
+                {/* FRONT — photo in a black frame */}
+                <div className="badge-face rounded-[14px] border border-white/10 bg-black/90 p-2.5 pb-9 shadow-[0_22px_50px_-14px_rgba(0,0,0,0.65)]">
+                  {/* Slot hole punched through the frame */}
+                  <div className="mx-auto mb-2 h-1.5 w-9 rounded-full bg-white/15" />
 
-                  <div className="relative overflow-hidden rounded-[6px]">
+                  <div className="relative overflow-hidden rounded-[6px] border border-white/10">
                     <img
                       src="/id-photo.jpg"
                       alt="Profile ID"
-                      className="h-48 w-full object-cover object-top grayscale sm:h-56 lg:h-64"
+                      className="h-48 w-full object-cover object-top sm:h-56 lg:h-64"
                       draggable={false}
                     />
                     <span
@@ -668,44 +673,44 @@ export default function HomeShell({
                       ↻
                     </span>
                   </div>
-                  <p className="mt-2 text-center text-[9px] uppercase tracking-[0.22em] text-black/45">
+                  <p className="mt-2 text-center text-[9px] uppercase tracking-[0.22em] text-white/45">
                     ✦ grab me ✦
                   </p>
                 </div>
 
-                {/* BACK — short info, like a note on the back of the photo */}
+                {/* BACK — short info */}
                 <div
-                  className="badge-face absolute inset-0 flex flex-col rounded-[14px] bg-[#f3f3f6] p-2.5 pb-9 shadow-[0_22px_50px_-14px_rgba(0,0,0,0.65)]"
+                  className="badge-face absolute inset-0 flex flex-col rounded-[14px] border border-white/10 bg-black/90 p-2.5 pb-9 shadow-[0_22px_50px_-14px_rgba(0,0,0,0.65)]"
                   style={{ transform: "rotateY(180deg)" }}
                 >
-                  <div className="mx-auto mb-2 h-1.5 w-9 rounded-full bg-black/15" />
+                  <div className="mx-auto mb-2 h-1.5 w-9 rounded-full bg-white/15" />
 
                   <div className="flex flex-1 flex-col justify-center gap-3 px-1.5">
                     <div>
-                      <p className="text-[9px] uppercase tracking-[0.22em] text-black/40">
+                      <p className="text-[9px] uppercase tracking-[0.22em] text-white/45">
                         Nickname
                       </p>
-                      <p className="text-xl font-bold tracking-wide text-[#17171d]">
+                      <p className="text-xl font-bold tracking-wide text-white">
                         RYOTA
                       </p>
                     </div>
                     <div>
-                      <p className="text-[9px] uppercase tracking-[0.22em] text-black/40">
+                      <p className="text-[9px] uppercase tracking-[0.22em] text-white/45">
                         Age
                       </p>
-                      <p className="text-xl font-bold text-[#17171d]">22</p>
+                      <p className="text-xl font-bold text-white">22</p>
                     </div>
                     <div>
-                      <p className="text-[9px] uppercase tracking-[0.22em] text-black/40">
+                      <p className="text-[9px] uppercase tracking-[0.22em] text-white/45">
                         Motto
                       </p>
-                      <p className="text-[13px] italic leading-snug text-black/60">
+                      <p className="text-[13px] italic leading-snug text-white/85">
                         “Turning ideas into interfaces — one pixel at a time.”
                       </p>
                     </div>
                   </div>
 
-                  <div className="mt-2 flex items-center justify-between px-1 text-[9px] uppercase tracking-[0.18em] text-black/45">
+                  <div className="mt-2 flex items-center justify-between px-1 text-[9px] uppercase tracking-[0.18em] text-white/50">
                     <span>ID CARD</span>
                     <span>↻ tap to flip</span>
                   </div>
