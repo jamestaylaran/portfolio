@@ -647,10 +647,10 @@ export default function HomeShell({
               pendulum, and flips over on tap: polaroid photo on the front,
               short info on the back. The fade lives on the wrapper so the
               inner 3D flip never gets flattened during the fade-in. */}
-          <div className="badge-shell hero-anim hero-fade hero-d1 absolute right-6 top-[16%] z-[30] w-52 sm:right-12 sm:w-60 lg:right-16 lg:w-64">
+          <div className="badge-shell hero-anim hero-fade hero-d1 absolute right-6 top-[16%] z-[30] w-56 sm:right-12 sm:w-64 lg:right-16 lg:w-72">
             <div
               ref={badgeRef}
-              className="relative w-52 sm:w-60 lg:w-64"
+              className="relative w-56 sm:w-64 lg:w-72"
               style={{ transformStyle: "preserve-3d" }}
             >
               <div className="badge-flipper">
@@ -663,7 +663,7 @@ export default function HomeShell({
                     <img
                       src="/id-photo.jpg"
                       alt="Profile ID"
-                      className="h-48 w-full object-cover object-top sm:h-56 lg:h-64"
+                      className="h-52 w-full object-cover object-top sm:h-64 lg:h-72"
                       draggable={false}
                     />
                     <span
