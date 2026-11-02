@@ -265,6 +265,17 @@ function createLanyardSystem() {
         b.vy -= tny * vt;
       }
 
+      // Ceiling: an upward flick can't fling the badge over the navbar —
+      // it bounces off an invisible line just below the clip instead, so
+      // the card never overlaps the header at any point.
+      if (!b.dragging && b.vy < 0) {
+        const ceilY = ay + maxD * 0.75;
+        if (b.y < ceilY) {
+          b.y = ceilY;
+          b.vy = Math.abs(b.vy) * 0.3;
+        }
+      }
+
       // Speed cap — no violent slingshots.
       const sp = Math.hypot(b.vx, b.vy);
       if (sp > MAX_SPEED) {
@@ -388,10 +399,11 @@ function createLanyardSystem() {
       const ax = Math.min(anchorX, W - w / 2 - 8);
       const ay = ANCHOR_Y - window.scrollY;
       lastSy = window.scrollY;
-      // Entry: the badge starts up near the clip and falls in — the strap
-      // feeds out as it drops, then catches it with a bounce.
+      // Entry: the badge drops in from just under the clip and the strap
+      // feeds out as it falls, then catches it with a bounce. It always
+      // starts low enough that the card's top stays clear of the navbar.
       const phi = -0.1;
-      const d0 = Math.min(h / 2 + 68, maxD * 0.55);
+      const d0 = Math.min(Math.max(maxD * 0.7, h / 2 + 90), maxD - 15);
       const startX = ax + Math.sin(phi) * d0;
       const startY = ay + Math.cos(phi) * d0;
 
