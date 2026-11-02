@@ -480,7 +480,7 @@ function createLanyardSystem() {
 }
 
 const INTRO_DURATION = 5000;
-const TYPE_TEXT = "fresh Graduate"; // typed out under the headline
+const TYPE_TEXT = "seeking internship opportunities"; // typed out under the headline
 
 type HomeShellProps = {
   profile: Profile;
@@ -586,10 +586,10 @@ export default function HomeShell({
 
             <h1 className="text-5xl font-bold leading-[1.02] tracking-tight text-white sm:text-6xl lg:text-7xl xl:text-8xl">
               <span className="hero-anim hero-scale hero-d2 block">
-                Frontend
+                Computer
               </span>
               <span className="hero-anim hero-rotate hero-d3 block text-gray-500">
-                Developer
+                Science
               </span>
             </h1>
 
@@ -599,13 +599,14 @@ export default function HomeShell({
             </p>
 
             <p className="hero-anim hero-up hero-d5 max-w-xl text-sm leading-relaxed text-muted">
-              Menciptakan website modern dengan tampilan clean, responsif, dan
-              elegan. Membangun ide dan desain menjadi pengalaman digital yang
-              menarik dan mudah digunakan.
+              Computer science student who enjoys turning ideas into clean,
+              responsive web applications. I&apos;m currently seeking a
+              software engineering internship where I can contribute to real
+              projects and grow with a team.
             </p>
 
             <div className="flex flex-wrap gap-3">
-              {["Typescript", "React.js", "Tailwind"].map((tech, i) => (
+              {["TypeScript", "React.js", "Next.js", "Python"].map((tech, i) => (
                 <span
                   key={tech}
                   className="hero-anim hero-pop rounded-full border border-border bg-surface px-3 py-1 text-xs text-muted"
@@ -618,7 +619,7 @@ export default function HomeShell({
 
             <div className="hero-anim hero-up hero-d7 text-[10px] uppercase tracking-[0.25em] text-muted">
               ↓ explore my work below
-              <br />↖ open to full-time &amp; freelance opportunities
+              <br />↗ tap the ID badge to flip it
             </div>
           </div>
 

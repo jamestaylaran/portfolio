@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { getProfile } from "@/lib/data";
 import { isDatabaseConfigured } from "@/lib/db";
 import DatabaseNotice from "@/components/DatabaseNotice";
@@ -7,6 +8,15 @@ import type { ReactNode } from "react";
 // Render at request time so edits from the dashboard appear immediately and the
 // build never needs database access.
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "James Aldrine Taylaran — Computer Science Student",
+  description:
+    "Portfolio of James Aldrine Taylaran, a computer science student seeking a software engineering internship — achievements, leadership, and experience.",
+};
+
+// Seed placeholders ("...", "#") shouldn't render as broken links.
+const real = (v: string) => (v && v !== "..." && v !== "#" ? v : "");
 
 const NAV = [
   { href: "/", label: "Home" },
@@ -68,7 +78,7 @@ export default async function SiteLayout({
             © {year} {profile.name}. All rights reserved.
           </p>
           <div className="flex items-center gap-4">
-            {profile.social_github && (
+            {real(profile.social_github) && (
               <a
                 href={profile.social_github}
                 target="_blank"
@@ -78,7 +88,7 @@ export default async function SiteLayout({
                 GitHub
               </a>
             )}
-            {profile.social_linkedin && (
+            {real(profile.social_linkedin) && (
               <a
                 href={profile.social_linkedin}
                 target="_blank"

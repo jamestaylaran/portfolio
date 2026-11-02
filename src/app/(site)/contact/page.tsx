@@ -1,5 +1,10 @@
+import { existsSync } from "fs";
+import path from "path";
 import { getProfile } from "@/lib/data";
 import ScrollReveal from "@/components/ScrollReveal";
+
+// Seed placeholders ("...", "#") shouldn't render as broken links.
+const real = (v: string) => (v && v !== "..." && v !== "#" ? v : "");
 
 export default async function ContactPage() {
   const profile = await getProfile();
@@ -7,20 +12,28 @@ export default async function ContactPage() {
   const links = [
     { label: "Email", value: profile.email, href: `mailto:${profile.email}` },
     { label: "Phone", value: profile.phone, href: `tel:${profile.phone}` },
-    { label: "Website", value: profile.website, href: `https://${profile.website}` },
+    { label: "Website", value: profile.website, href: profile.website },
     { label: "GitHub", value: profile.social_github, href: profile.social_github },
     { label: "LinkedIn", value: profile.social_linkedin, href: profile.social_linkedin },
     { label: "Twitter", value: profile.social_twitter, href: profile.social_twitter },
     { label: "Facebook", value: profile.social_facebook, href: profile.social_facebook },
-  ].filter((l) => l.value);
+  ]
+    .map((l) => ({ ...l, value: real(l.value), href: real(l.href) }))
+    .filter((l) => l.value && l.href);
+
+  // Only offer the résumé download once the PDF actually exists in /public.
+  const resumeHref = real(profile.resume_url);
+  const hasResume =
+    resumeHref.startsWith("/") &&
+    existsSync(path.join(process.cwd(), "public", resumeHref.slice(1)));
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-20 relative z-10">
       <ScrollReveal className="reveal animate-slide-up">
         <h1 className="text-3xl font-bold tracking-tight section-head reveal-line">Contact</h1>
         <p className="mt-2 text-muted reveal">
-          Feel free to reach out — I&apos;m always open to new opportunities and
-          collaborations.
+          I&apos;m currently seeking a software engineering internship — feel
+          free to reach out about opportunities, collaborations, or projects.
         </p>
       </ScrollReveal>
 
@@ -37,10 +50,10 @@ export default async function ContactPage() {
         ))}
       </div>
 
-      {profile.resume_url && (
+      {hasResume && (
         <ScrollReveal className="reveal" delay={300}>
           <a
-            href={profile.resume_url}
+            href={resumeHref}
             target="_blank"
             rel="noopener noreferrer"
             className="btn btn-primary mt-10"
