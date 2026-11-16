@@ -1,8 +1,33 @@
 import { getActivities, getRoles } from "@/lib/data";
 import ScrollReveal from "@/components/ScrollReveal";
 
-export default async function InvolvementPage() {
+type Filter = "all" | "activities" | "projects";
+
+const FILTER_LABELS: Record<Filter, string> = {
+  all: "All",
+  activities: "Activities",
+  projects: "Projects",
+};
+
+export default async function InvolvementPage({
+  searchParams,
+}: {
+  searchParams: { [key: string]: string | string[] | undefined };
+}) {
   const [roles, activities] = await Promise.all([getRoles(), getActivities()]);
+
+  const filter = (() => {
+    const raw = searchParams.filter;
+    if (raw === "projects") return "projects";
+    if (raw === "activities") return "activities";
+    return "all";
+  })();
+
+  const filteredActivities = activities.filter((act) => {
+    if (filter === "all") return true;
+    if (filter === "projects") return act.activity_type === "Project";
+    return act.activity_type !== "Project";
+  });
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-20 relative z-10">
@@ -53,9 +78,36 @@ export default async function InvolvementPage() {
 
       <section className="mt-16 relative z-10">
         <ScrollReveal className="reveal" delay={150}>
-          <h2 className="text-xl font-semibold section-head reveal-line">Activities & projects</h2>
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-semibold section-head reveal-line">Activities & projects</h2>
+            <div className="flex gap-2">
+              {Object.entries(FILTER_LABELS).map(([key, label]) => {
+                const f = key as Filter;
+                const active = filter === f;
+                return (
+                  <button
+                    key={key}
+                    className={`px-3 py-1 rounded-md text-xs font-medium transition-colors border ${
+                      active
+                        ? "bg-accent text-white border-accent"
+                        : "border-border text-muted hover:bg-surface hover:text-foreground"
+                    }`}
+                    onClick={() => {
+                      const url = new URL(window.location.href);
+                      if (f === "all") url.searchParams.delete("filter");
+                      else url.searchParams.set("filter", f);
+                      window.history.pushState({}, "", url);
+                      window.location.reload();
+                    }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
           <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {activities.map((act, i) => (
+            {filteredActivities.map((act, i) => (
               <ScrollReveal
                 key={act.id}
                 className="card card-lift card-hover p-6 reveal"
@@ -85,8 +137,10 @@ export default async function InvolvementPage() {
                 )}
               </ScrollReveal>
             ))}
-            {activities.length === 0 && (
-              <p className="text-muted reveal">No activities added yet.</p>
+            {filteredActivities.length === 0 && (
+              <p className="text-muted reveal">
+                No {FILTER_LABELS[filter].toLowerCase()} added yet.
+              </p>
             )}
           </div>
         </ScrollReveal>
