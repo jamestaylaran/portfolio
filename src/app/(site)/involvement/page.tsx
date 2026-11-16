@@ -12,12 +12,13 @@ const FILTER_LABELS: Record<Filter, string> = {
 export default async function InvolvementPage({
   searchParams,
 }: {
-  searchParams: { [key: string]: string | string[] | undefined };
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
+  const params = await searchParams;
   const [roles, activities] = await Promise.all([getRoles(), getActivities()]);
 
   const filter = (() => {
-    const raw = searchParams.filter;
+    const raw = params.filter;
     if (raw === "projects") return "projects";
     if (raw === "activities") return "activities";
     return "all";
