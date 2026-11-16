@@ -487,7 +487,7 @@ function createLanyardSystem() {
 }
 
 const INTRO_DURATION = 5000;
-const TYPE_TEXT = "seeking internship opportunities"; // typed out under the headline
+const TYPE_PHRASES = ["seeking internship opportunities", "turning ideas into interfaces"]; // alternates under the headline
 
 type HomeShellProps = {
   profile: Profile;
@@ -517,18 +517,30 @@ export default function HomeShell({
   // keeps blinking forever.
   useEffect(() => {
     if (!introDone) return;
-    let iv = 0;
-    const start = window.setTimeout(() => {
-      let i = 0;
-      iv = window.setInterval(() => {
+    let phrase = 0;
+    let i = 0;
+    let deleting = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      const current = TYPE_PHRASES[phrase];
+      if (deleting) {
+        setTyped(current.slice(0, i - 1));
+        i -= 1;
+        if (i === 0) {
+          deleting = false;
+          phrase = (phrase + 1) % TYPE_PHRASES.length;
+        }
+      } else {
+        setTyped(current.slice(0, i + 1));
         i += 1;
-        setTyped(TYPE_TEXT.slice(0, i));
-        if (i >= TYPE_TEXT.length) window.clearInterval(iv);
-      }, 70);
-    }, 750);
+        if (i === current.length) deleting = true;
+      }
+      timer = setTimeout(tick, deleting ? 35 : 70);
+    };
+    const start = window.setTimeout(() => tick(), 750);
     return () => {
       window.clearTimeout(start);
-      window.clearInterval(iv);
+      window.clearTimeout(timer);
     };
   }, [introDone]);
 
@@ -592,12 +604,8 @@ export default function HomeShell({
             </span>
 
             <h1 className="text-5xl font-bold leading-[1.02] tracking-tight text-white sm:text-6xl lg:text-7xl xl:text-8xl">
-              <span className="hero-anim hero-scale hero-d2 block">
-                Computer
-              </span>
-              <span className="hero-anim hero-rotate hero-d3 block text-gray-500">
-                Science
-              </span>
+              <span className="hero-anim hero-scale hero-d2 block">James Aldrine</span>
+              <span className="hero-anim hero-rotate hero-d3 block">Taylaran</span>
             </h1>
 
             <p className="hero-anim hero-fade hero-d4 text-sm uppercase tracking-[0.35em] text-muted">
