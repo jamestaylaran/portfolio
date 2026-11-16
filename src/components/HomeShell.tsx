@@ -42,6 +42,8 @@ const ANCHOR_Y = 100; // just below the sticky navbar — the buckle's height
 const LACE_SEGS = 14; // strap segments along the bend curve
 const CARD_LEAN = 8; // baked-in tilt (deg), like a casually hung badge
 const MAX_ANGLE = 0.62; // ~35° max swing from vertical — stays upright
+const COMPACT_ANGLE = 0.3; // ~17° below lg — short strap, tighter cone
+const CEIL_COMPACT = 0.92; // ceiling hugs rest when the badge hangs top-right
 const MAX_SPEED = 14; // px/frame cap so throws stay graceful, never violent
 const ROPE_K = 0.2; // lace spring stiffness — bungee catch that bounces
 const ROPE_DAMP = 0.08; // softens each successive bounce
@@ -51,7 +53,12 @@ const BOUNCE_VN = 3; // min outward speed that triggers a rebound
 
 // Taut lace length: long enough for the badge to hang at the vertical
 // center of the landing (measured from the clip down to that rest spot).
-const restMaxD = (H: number) => Math.max(180, H / 2 - ANCHOR_Y);
+// Below `lg` the hero copy runs full-width, so the badge gets a short
+// strap instead and hangs top-right, clear of the text.
+const restMaxD = (H: number, W: number) =>
+  W < 640 ? 130 : W < 1024 ? 155 : Math.max(180, H / 2 - ANCHOR_Y);
+const maxAngle = (W: number) => (W < 1024 ? COMPACT_ANGLE : MAX_ANGLE);
+const ceilFactor = (W: number) => (W < 1024 ? CEIL_COMPACT : 0.75);
 
 function createLanyardSystem() {
   const bodies: Body[] = [];
@@ -76,7 +83,7 @@ function createLanyardSystem() {
       r && r.width > 0 ? r.left + r.width / 2 : window.innerWidth / 2;
     // Keep the strap in sync with the landing on resize: segment width,
     // the card's own box, the strap length, and each segment's height.
-    const maxD = restMaxD(window.innerHeight);
+    const maxD = restMaxD(window.innerHeight, window.innerWidth);
     for (const b of bodies) {
       const s0 = b.segs[0];
       if (s0) b.segW = s0.offsetWidth;
@@ -192,7 +199,7 @@ function createLanyardSystem() {
     for (const b of bodies) {
       // Lace length: exactly long enough for the badge to hang at the
       // vertical center of the landing. Recomputed on resize.
-      const maxD = restMaxD(H);
+      const maxD = restMaxD(H, W);
       const ax = Math.min(anchorX, W - b.w / 2 - 8);
 
       // --- forces (computed from the current position) --------------------
@@ -253,7 +260,7 @@ function createLanyardSystem() {
 
       // Swing cone: keeps the card upright — max 35° from vertical.
       const ang = Math.atan2(cx2, cy2); // 0 = straight down
-      const cAng = Math.max(-MAX_ANGLE, Math.min(MAX_ANGLE, ang));
+      const cAng = Math.max(-maxAngle(W), Math.min(maxAngle(W), ang));
       if (cAng !== ang) {
         b.x = ax + Math.sin(cAng) * cd;
         b.y = ay + Math.cos(cAng) * cd;
@@ -269,7 +276,7 @@ function createLanyardSystem() {
       // it bounces off an invisible line just below the clip instead, so
       // the card never overlaps the header at any point.
       if (!b.dragging && b.vy < 0) {
-        const ceilY = ay + maxD * 0.75;
+        const ceilY = ay + maxD * ceilFactor(W);
         if (b.y < ceilY) {
           b.y = ceilY;
           b.vy = Math.abs(b.vy) * 0.3;
@@ -394,7 +401,7 @@ function createLanyardSystem() {
       const H = window.innerHeight;
       const W = window.innerWidth;
       // Long enough that the badge hangs at the vertical center of the landing.
-      const maxD = restMaxD(H);
+      const maxD = restMaxD(H, W);
       const laceLen = Math.max(60, maxD - h / 2);
       const ax = Math.min(anchorX, W - w / 2 - 8);
       const ay = ANCHOR_Y - window.scrollY;
@@ -561,7 +568,7 @@ export default function HomeShell({
         <div className="fixed inset-0 z-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgdHlwZT0icmVwdGV0ZXkiPjxwYXRoIGQ9Ik0gNCAwIEwgMCA0IE0gNDAgNAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzI2MjYzMyIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2cpIi8+PC9zdmc+')] [background-size:40px_40px] opacity-40 pointer-events-none" />
 
         {/* Full-bleed hero: content hard left, badge hanging on the right */}
-        <section className="relative flex min-h-[calc(100vh_-_64px)] w-full items-center px-6 py-20 sm:px-10 lg:px-16">
+        <section className="relative flex min-h-[calc(100vh_-_64px)] w-full items-center px-6 pt-80 pb-20 sm:px-10 sm:pt-96 lg:px-16 lg:pt-20">
           {/* Soft ambient light orbs (static blurred blobs, like the
               reference portfolio) */}
           <div
@@ -660,10 +667,10 @@ export default function HomeShell({
               pendulum, and flips over on tap: polaroid photo on the front,
               short info on the back. The fade lives on the wrapper so the
               inner 3D flip never gets flattened during the fade-in. */}
-          <div className="badge-shell hero-anim hero-fade hero-d1 absolute right-6 top-[16%] z-[30] w-56 sm:right-12 sm:w-64 lg:right-16 lg:w-72">
+          <div className="badge-shell hero-anim hero-fade hero-d1 absolute right-6 top-[16%] z-[30] w-40 sm:w-48 lg:w-72">
             <div
               ref={badgeRef}
-              className="relative w-56 sm:w-64 lg:w-72"
+              className="relative w-40 sm:w-48 lg:w-72"
               style={{ transformStyle: "preserve-3d" }}
             >
               <div className="badge-flipper">
@@ -676,7 +683,7 @@ export default function HomeShell({
                     <img
                       src="/id-photo.jpg"
                       alt="Profile ID"
-                      className="h-52 w-full object-cover object-top sm:h-64 lg:h-72"
+                      className="h-36 w-full object-cover object-top sm:h-48 lg:h-72"
                       draggable={false}
                     />
                     <span
