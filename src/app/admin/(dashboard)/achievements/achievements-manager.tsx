@@ -71,11 +71,12 @@ export function AchievementsManager({
               />
             </div>
             <div className="field">
-              <label htmlFor="a-date">Date</label>
+              <label htmlFor="a-date">Year &amp; semester</label>
               <input
                 id="a-date"
                 name="date"
-                type="date"
+                type="text"
+                placeholder="e.g. 2025 Semester 1"
                 value={editing.date}
                 onChange={(e) =>
                   setEditing({ ...editing, date: e.target.value })
