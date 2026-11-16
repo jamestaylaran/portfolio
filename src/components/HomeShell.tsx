@@ -520,22 +520,44 @@ export default function HomeShell({
     let phrase = 0;
     let i = 0;
     let deleting = false;
+    let paused = false;
+    let pauseStart = 0;
     let timer: ReturnType<typeof setTimeout>;
+    const TYPE_SPEED = 70;
+    const DELETE_SPEED = 35;
+    const PAUSE_AFTER_TYPE = 3000; // hold the finished phrase before changing
     const tick = () => {
       const current = TYPE_PHRASES[phrase];
+      if (paused) {
+        const elapsed = Date.now() - pauseStart;
+        if (elapsed < PAUSE_AFTER_TYPE) {
+          timer = setTimeout(tick, PAUSE_AFTER_TYPE - elapsed);
+          return;
+        }
+        paused = false;
+        deleting = true; // start deleting once the hold is over
+      }
       if (deleting) {
         setTyped(current.slice(0, i - 1));
         i -= 1;
         if (i === 0) {
           deleting = false;
           phrase = (phrase + 1) % TYPE_PHRASES.length;
+          timer = setTimeout(tick, 400); // brief breather before typing the next phrase
+          return;
         }
-      } else {
-        setTyped(current.slice(0, i + 1));
-        i += 1;
-        if (i === current.length) deleting = true;
+        timer = setTimeout(tick, DELETE_SPEED);
+        return;
       }
-      timer = setTimeout(tick, deleting ? 35 : 70);
+      setTyped(current.slice(0, i + 1));
+      i += 1;
+      if (i === current.length) {
+        paused = true;
+        pauseStart = Date.now();
+        timer = setTimeout(tick, PAUSE_AFTER_TYPE);
+        return;
+      }
+      timer = setTimeout(tick, TYPE_SPEED);
     };
     const start = window.setTimeout(() => tick(), 750);
     return () => {
