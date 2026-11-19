@@ -1,9 +1,10 @@
 import { getActivities, getRoles } from "@/lib/data";
 import ScrollReveal from "@/components/ScrollReveal";
-import { ActivityCards } from "./activity-cards";
 
 export default async function InvolvementPage() {
   const [roles, activities] = await Promise.all([getRoles(), getActivities()]);
+
+  const nonProjectActivities = activities.filter((a) => a.activity_type !== "Project");
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-20 relative z-10">
@@ -52,7 +53,46 @@ export default async function InvolvementPage() {
         </ScrollReveal>
       </section>
 
-      <ActivityCards activities={activities} />
+      <section className="mt-16 relative z-10">
+        <ScrollReveal className="reveal" delay={150}>
+          <h2 className="text-xl font-semibold section-head reveal-line">Activities</h2>
+          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {nonProjectActivities.map((act, i) => (
+              <ScrollReveal
+                key={act.id}
+                className="card card-lift card-hover p-6 reveal"
+                delay={i * 100}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="rounded-full bg-accent-soft px-2.5 py-0.5 text-xs font-medium text-accent">
+                    {act.activity_type}
+                  </span>
+                  <span className="text-xs text-muted">{act.date}</span>
+                </div>
+                <h3 className="mt-3 font-semibold">{act.title}</h3>
+                {act.description && (
+                  <p className="mt-2 text-sm leading-relaxed text-muted reveal">
+                    {act.description}
+                  </p>
+                )}
+                {act.link && (
+                  <a
+                    href={act.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-3 inline-block text-sm text-accent hover:underline"
+                  >
+                    Learn more →
+                  </a>
+                )}
+              </ScrollReveal>
+            ))}
+            {nonProjectActivities.length === 0 && (
+              <p className="text-muted reveal">No activities added yet.</p>
+            )}
+          </div>
+        </ScrollReveal>
+      </section>
     </div>
   );
 }
