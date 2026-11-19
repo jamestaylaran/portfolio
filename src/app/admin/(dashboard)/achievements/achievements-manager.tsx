@@ -17,6 +17,17 @@ const CATEGORIES = [
   "Other",
 ];
 
+const YEAR_LEVELS = [
+  "SHS",
+  "College",
+  "Grade 11",
+  "Grade 12",
+  "1st year",
+  "2nd year",
+  "3rd year",
+  "4th year",
+];
+
 const EMPTY = {
   id: 0,
   title: "",
@@ -71,17 +82,22 @@ export function AchievementsManager({
               />
             </div>
             <div className="field">
-              <label htmlFor="a-date">Year &amp; semester</label>
-              <input
+              <label htmlFor="a-date">Year level</label>
+              <select
                 id="a-date"
                 name="date"
-                type="text"
-                placeholder="e.g. 2025 Semester 1"
                 value={editing.date}
                 onChange={(e) =>
                   setEditing({ ...editing, date: e.target.value })
                 }
-              />
+              >
+                <option value="">Select year level</option>
+                {YEAR_LEVELS.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="field">
               <label htmlFor="a-category">Category</label>
