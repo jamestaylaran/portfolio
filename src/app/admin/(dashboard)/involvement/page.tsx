@@ -3,5 +3,6 @@ import { InvolvementManager } from "./involvement-manager";
 
 export default async function AdminInvolvementPage() {
   const [roles, activities] = await Promise.all([getRoles(), getActivities()]);
-  return <InvolvementManager roles={roles} activities={activities} />;
+  const nonProjectActivities = activities.filter((a) => a.activity_type !== "Project");
+  return <InvolvementManager roles={roles} activities={nonProjectActivities} />;
 }
