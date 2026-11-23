@@ -64,9 +64,45 @@ function hasLink(p: Activity) {
   return Boolean(p.link && p.link !== "#" && p.link !== "...");
 }
 
+type Palette = (typeof PALETTES)[number];
+
+function screenshotUrl(link: string) {
+  return `https://image.thum.io/get/width/800/crop/640/noanimate/${link}`;
+}
+
+function MockBody({ project, pal }: { project: Activity; pal: Palette }) {
+  return (
+    <div className="px-4 py-4">
+      <p className="text-[9px] uppercase tracking-[0.24em] text-neutral-400">
+        {project.activity_type}
+      </p>
+      <p className="mt-1 line-clamp-2 text-xl font-black leading-tight text-neutral-800">
+        {project.title}
+      </p>
+      <div className="mt-3 space-y-1.5">
+        <span className="block h-1.5 w-4/5 rounded bg-neutral-200" />
+        <span className="block h-1.5 w-3/5 rounded bg-neutral-200" />
+        <span className="block h-1.5 w-2/3 rounded bg-neutral-100" />
+      </div>
+      <div className="mt-3 flex gap-1.5">
+        <span className="h-5 w-12 rounded" style={{ background: pal.from }} />
+        <span className="h-5 w-8 rounded" style={{ background: pal.to }} />
+        <span
+          className="h-5 w-10 rounded"
+          style={{ background: `${pal.accent}22` }}
+        />
+      </div>
+    </div>
+  );
+}
+
 function ProjectPreview({ project, index }: { project: Activity; index: number }) {
   const pal = PALETTES[index % PALETTES.length];
-  const host = hasLink(project) ? hostOf(project.link) : "project.preview";
+  const linked = hasLink(project);
+  const host = linked ? hostOf(project.link) : "project.preview";
+  const [failed, setFailed] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const showShot = linked && !failed;
 
   return (
     <div className="absolute inset-0">
@@ -82,9 +118,9 @@ function ProjectPreview({ project, index }: { project: Activity; index: number }
         aria-hidden="true"
       />
 
-      {/* Mock browser window */}
-      <div className="absolute inset-3 overflow-hidden rounded-xl bg-white/90 shadow-[0_24px_44px_-24px_rgba(0,0,0,0.45)] ring-1 ring-black/5">
-        <div className="flex items-center gap-1.5 border-b border-black/5 px-3 py-2">
+      {/* Browser window */}
+      <div className="absolute inset-3 flex flex-col overflow-hidden rounded-xl bg-white shadow-[0_24px_44px_-24px_rgba(0,0,0,0.45)] ring-1 ring-black/5">
+        <div className="flex shrink-0 items-center gap-1.5 border-b border-black/5 px-3 py-2">
           <span className="h-2 w-2 rounded-full bg-[#ff6058]" />
           <span className="h-2 w-2 rounded-full bg-[#ffbd2e]" />
           <span className="h-2 w-2 rounded-full bg-[#28c840]" />
@@ -92,29 +128,30 @@ function ProjectPreview({ project, index }: { project: Activity; index: number }
             {host}
           </span>
         </div>
-        <div className="px-4 py-4">
-          <p className="text-[9px] uppercase tracking-[0.24em] text-neutral-400">
-            {project.activity_type}
-          </p>
-          <p className="mt-1 line-clamp-2 text-xl font-black leading-tight text-neutral-800">
-            {project.title}
-          </p>
-          <div className="mt-3 space-y-1.5">
-            <span className="block h-1.5 w-4/5 rounded bg-neutral-200" />
-            <span className="block h-1.5 w-3/5 rounded bg-neutral-200" />
-            <span className="block h-1.5 w-2/3 rounded bg-neutral-100" />
-          </div>
-          <div className="mt-3 flex gap-1.5">
-            <span
-              className="h-5 w-12 rounded"
-              style={{ background: pal.from }}
-            />
-            <span className="h-5 w-8 rounded" style={{ background: pal.to }} />
-            <span
-              className="h-5 w-10 rounded"
-              style={{ background: `${pal.accent}22` }}
-            />
-          </div>
+
+        <div className="relative flex-1 overflow-hidden bg-white">
+          {showShot ? (
+            <>
+              {!loaded && (
+                <div className="absolute inset-0 animate-pulse bg-[linear-gradient(110deg,#eef0f3,#f8f9fb,#eef0f3)]" />
+              )}
+              {/* Live screenshot of the project's real homepage */}
+              <img
+                src={screenshotUrl(project.link)}
+                alt={`${project.title} homepage`}
+                onLoad={() => setLoaded(true)}
+                onError={() => setFailed(true)}
+                loading="lazy"
+                referrerPolicy="no-referrer"
+                className={`h-full w-full object-cover object-top transition-opacity duration-500 ${
+                  loaded ? "opacity-100" : "opacity-0"
+                }`}
+              />
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/25 to-transparent" />
+            </>
+          ) : (
+            <MockBody project={project} pal={pal} />
+          )}
         </div>
       </div>
     </div>
